@@ -72,10 +72,19 @@ static int sharp_mip_init(const struct device *dev) {
   return 0;
 }
 
-static inline void set_rgb(int y, int x) {
-  if (y < 100) {
+static inline void set_rgb(int y, int x, const void *buf) {
+  // if (y < 100) {
+  // if (((uint8_t *)buf)[280 * y + x] == 0) {
+  // 8bit, 280 * 28.
+  // size_t offset = (280 * y + x) / 2;
+
+  // Monochrome.
+  size_t byte_pos = (280 / 8 * y + (x / 8));
+  size_t bit_pos = x % 8;
+  if (((uint8_t *)buf)[byte_pos] & (1 << bit_pos)) {
+    // if (((uint8_t *)buf)[y * 280 + x]) {
     // This looks actually white!
-    SET_RGB(0b000011);
+    SET_RGB(0b000000);
     return;
     // } else if (y < (DISPLAY_H * 2) / 3) {
     //   SET_RGB(0b001100);
@@ -84,19 +93,21 @@ static inline void set_rgb(int y, int x) {
     //   // SET_RGB(0b110000);
     //   SET_RGB(0b111111);
   }
-  SET_RGB(0b111111);
-  // SET_RGB(0b010111);
+  // SET_RGB(0b000011);
+  // SET_RGB(0b000);
   // SET_RGB(0b000000);
+  SET_RGB(0b111111);
 }
 
-static inline void send_line(int y, const struct sharp_mip_config *cfg) {
+static inline void send_line(int y, const struct sharp_mip_config *cfg,
+                             const void *buf) {
   GSET(bsp);
   GSET(bck);
   GCLR(bck);
   GCLR(bsp);
 
   for (int i = 3; i <= 141; i++) {
-    set_rgb(y, i);
+    set_rgb(y, i, buf);
     GTOG(bck);
   }
 
@@ -110,16 +121,20 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
                            const uint16_t y,
                            const struct display_buffer_descriptor *desc,
                            const void *buf) {
+  if (y > 0) {
+    return 0;
+  }
   const struct sharp_mip_config *cfg = dev->config;
 
-  LOG_DBG("Sharp MIP display write. x: %d, y: %d", x, y);
+  LOG_DBG("Sharp MIP display write. x: %d, y: %d; buf size: %d", x, y,
+          desc->buf_size);
 
   GSET(intb);
   GSET(gsp);
   GSET(gck);
   GCLR(gck);
 
-  send_line(0, cfg);
+  send_line(0, cfg, buf);
 
   GCLR(gsp);
 
@@ -127,7 +142,7 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
     GTOG(gck);
     GSET(gen);
 
-    send_line((i - 2) / 2, cfg);
+    send_line((i - 2) / 2, cfg, buf);
 
     GCLR(gen);
   }
@@ -146,7 +161,7 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
     }
   }
 
-  // GCLR(intb);
+  GCLR(intb);
 
   return 0;
 }

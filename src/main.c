@@ -1,3 +1,5 @@
+#include <lvgl.h>
+// #include <lvgl_input_device.h>
 #include <stdio.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/display.h>
@@ -14,7 +16,7 @@ LOG_MODULE_REGISTER(main, CONFIG_DISPLAY_LOG_LEVEL);
 #define DISPLAY_H DT_PROP(DT_NODELABEL(sharp_display), height)
 #define DISPLAY_W DT_PROP(DT_NODELABEL(sharp_display), width)
 
-static const struct device *display =
+static const struct device *display_dev =
     DEVICE_DT_GET(DT_NODELABEL(sharp_display));
 
 static const struct gpio_dt_spec vddio_en =
@@ -31,7 +33,7 @@ static const struct gpio_dt_spec vbus_en =
 static const struct gpio_dt_spec led0 =
     GPIO_DT_SPEC_GET(DT_NODELABEL(led0), gpios);
 
-static uint8_t buf[(DISPLAY_W * DISPLAY_H) / 8] = {0};
+// static uint8_t buf[(DISPLAY_W * DISPLAY_H) / 8] = {0};
 
 int main(void) {
   int ret;
@@ -49,22 +51,53 @@ int main(void) {
   // Start alternating VCOM/VB and VA signals.
   disp_vcom_init();
 
-  struct display_buffer_descriptor desc = {
-      .width = DISPLAY_W,
-      .height = DISPLAY_H,
-      .pitch = DISPLAY_W,
-      .buf_size = sizeof(buf),
-  };
+  if (!device_is_ready(display_dev)) {
+    LOG_ERR("Device not ready, aborting test");
+    return 0;
+  }
 
-  struct display_capabilities capabilities;
-  // struct display_info info;
+  // display_
+
+  lv_obj_t *label = lv_label_create(lv_scr_act());
+  lv_label_set_text(label, "Hello, LVGL!");
+  lv_obj_align(label, LV_ALIGN_CENTER, -40, 0);
+  // lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+
+  // display_blanking_off(display_dev);
 
   while (1) {
-    // send_frame();
-    display_write(display, 0, 0, &desc, buf);
-    k_msleep(500);
-    // LOG_INF("Frame sent");
+    lv_task_handler();
+    k_sleep(K_MSEC(10));
   }
+
+  // lv_obj_t *hello_world_label;
+  // lv_obj_t *count_label;
+
+  // // hello_world_label = lv_label_create(lv_screen_active());
+  // hello_world_label = lv_label_create(lv_scr_act());
+  // lv_label_set_text(hello_world_label, "Hello world!");
+  // lv_obj_align(hello_world_label, LV_ALIGN_CENTER, 0, 0);
+
+  // struct display_buffer_descriptor desc = {
+  //     .width = DISPLAY_W,
+  //     .height = DISPLAY_H,
+  //     .pitch = DISPLAY_W,
+  //     .buf_size = sizeof(buf),
+  // };
+
+  // // struct display_capabilities capabilities;
+  // // struct display_info info;
+
+  // while (1) {
+  //   // send_frame();
+  //   // display_write(display_dev, 0, 0, &desc, buf);
+  //   k_msleep(500);
+  //   // LOG_INF("Frame sent");
+
+  //   // lv_label_set_text(count_label, count_str);
+
+  //   lv_timer_handler();
+  // }
 
   return 0;
 }

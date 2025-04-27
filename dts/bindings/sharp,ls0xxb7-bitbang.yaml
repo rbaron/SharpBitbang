@@ -59,8 +59,8 @@ properties:
     type: int
     required: true
     enum:
+      - 10
       - 30
       - 60
     description: |
       Frequency of VCOM in Hertz
-

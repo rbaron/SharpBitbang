@@ -93,9 +93,9 @@ static inline void set_rgb(int y, int x, const void *buf) {
   size_t offset = 2 * (280 * y + x);
   uint8_t *b = (uint8_t *)buf + offset;
   // uint8_t r = (((uint8_t *)buf)[offset] >> 3) & 0x1F;
-  uint8_t r = b[0] >> 3;
-  uint8_t g = (b[0] & 0x7) << 2 | (b[1] >> 5);
-  uint8_t b_ = b[1] & 0x1f;
+  uint8_t r = b[1] >> 3;
+  uint8_t g = (b[1] & 0x7) << 2 | (b[0] >> 5);
+  uint8_t b_ = b[0] & 0x1f;
   SET_RGB((CVT_52_BITS(r) << 4) | (CVT_62_BITS(g) << 2) | (CVT_52_BITS(b_)));
 
   // if (((uint8_t *)buf)[offset] & 0x01) {

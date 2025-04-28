@@ -1,6 +1,10 @@
 // These are convenience macros for the Sharp LS0XXB7 display driver for nRF
 // SoCs. They are low-level, below-Zephyr fast GPIO macros for the nRF SoCs
-// only.
+// only. These are pretty awful, but provide a scape hatch for speed by direct
+// register access.
+
+// TODO: make this more generic. Right now it has hardcoded pin numbers in a
+// bunch of places.
 
 #ifndef _DISPLAY_SHARP_LS0XXB7_BITBANG_NRF_MACROS_H_
 #define _DISPLAY_SHARP_LS0XXB7_BITBANG_NRF_MACROS_H_
@@ -89,7 +93,8 @@
 
 // Convert 5-bit and 6-bit color values to 2 bit values by ignoring the least
 // significant bits.
-#define CVT_52_BITS(val) ((val) >> 3)
-#define CVT_62_BITS(val) ((val) >> 4)
+// TODO: I'm not sure this is a good mapping, just intuition.
+#define CVT_5_TO_2_BITS(val) (((val) >> 3) & 0x03)
+#define CVT_6_TO_2_BITS(val) (((val) >> 4) & 0x03)
 
 #endif  // _DISPLAY_SHARP_LS0XXB7_BITBANG_NRF_MACROS_H_

@@ -63,8 +63,11 @@ static int sharp_mip_init(const struct device *dev) {
     SET_GPIO_OUTPUT(ret, config->rgb[i]);
   }
 
-  // gpio_pin_configure_dt(&config->vcom_vb, GPIO_OUTPUT);
-  // gpio_pin_configure_dt(&config->va, GPIO_OUTPUT);
+  // TODO: Create a simple Zephyr thread to generate VCOM/VB and VA signals.
+  // This must be optionally disabled by config, as users may generate these
+  // signals elsewhere, possibly also in hardware.
+  // SET_GPIO_OUTPUT(ret, config->vcom_vb);
+  // SET_GPIO_OUTPUT(ret, config->va);
 
   LOG_DBG("Sharp MIP display initialized. Resolution: %dx%d", config->width,
           config->height);
@@ -74,14 +77,15 @@ static int sharp_mip_init(const struct device *dev) {
 
 static inline void set_rgb(int y, int x, const void *buf) {
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
-  // Our display supports 2-bit colors, but Zephyr + LVGL uses at least 16-bit
+  // Our display supports 6-bit colors, but Zephyr + LVGL uses at least 16-bit
   // colors. Here we need to convert them.
   size_t offset = 2 * (280 * y + x);
   uint8_t *off_buf = (uint8_t *)buf + offset;
   uint8_t r = off_buf[1] >> 3;
   uint8_t g = (off_buf[1] & 0x7) << 3 | (off_buf[0] >> 5);
   uint8_t b_ = off_buf[0] & 0x1f;
-  SET_RGB((CVT_52_BITS(r) << 4) | (CVT_62_BITS(g) << 2) | (CVT_52_BITS(b_)));
+  SET_RGB((CVT_5_TO_2_BITS(r) << 4) | (CVT_6_TO_2_BITS(g) << 2) |
+          (CVT_5_TO_2_BITS(b_)));
 
 #elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
   size_t byte_pos = (280 / 8 * y + (x / 8));

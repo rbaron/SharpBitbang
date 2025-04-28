@@ -72,40 +72,26 @@ static int sharp_mip_init(const struct device *dev) {
   return 0;
 }
 
-static int convert_to_2bit(uint8_t val_5bit) {
-  // Range
-}
-
 static inline void set_rgb(int y, int x, const void *buf) {
-  // if (y < 100) {
-  // if (((uint8_t *)buf)[280 * y + x] == 0) {
-  // 8bit, 280 * 28.
-  // size_t offset = (280 * y + x) / 2;
-
-  // Monochrome.
-  // size_t byte_pos = (280 / 8 * y + (x / 8));
-  // size_t bit_pos = x % 8;
-  // if (((uint8_t *)buf)[byte_pos] & (1 << bit_pos)) {
-  // SET_RGB(0b111111);
-  // }
-
-  // 16-bit color.
+#if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
+  // Our display supports 2-bit colors, but Zephyr + LVGL uses at least 16-bit
+  // colors. Here we need to convert them.
   size_t offset = 2 * (280 * y + x);
-  uint8_t *b = (uint8_t *)buf + offset;
-  // uint8_t r = (((uint8_t *)buf)[offset] >> 3) & 0x1F;
-  uint8_t r = b[1] >> 3;
-  uint8_t g = (b[1] & 0x7) << 2 | (b[0] >> 5);
-  uint8_t b_ = b[0] & 0x1f;
+  uint8_t *off_buf = (uint8_t *)buf + offset;
+  uint8_t r = off_buf[1] >> 3;
+  uint8_t g = (off_buf[1] & 0x7) << 2 | (off_buf[0] >> 5);
+  uint8_t b_ = off_buf[0] & 0x1f;
   SET_RGB((CVT_52_BITS(r) << 4) | (CVT_62_BITS(g) << 2) | (CVT_52_BITS(b_)));
 
-  // if (((uint8_t *)buf)[offset] & 0x01) {
-  //   return;
-  // }
-
-  // SET_RGB(0b000000);
-  // return;
-
-  // SET_RGB(0b111111);
+#elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
+  size_t byte_pos = (280 / 8 * y + (x / 8));
+  size_t bit_pos = x % 8;
+  if (((uint8_t *)buf)[byte_pos] & (1 << bit_pos)) {
+    SET_RGB(0b000000);
+  } else {
+    SET_RGB(0b111111);
+  }
+#endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE
 }
 
 static inline void send_line(int y, const struct sharp_mip_config *cfg,
@@ -160,13 +146,15 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
       GSET(gen);
       const uint16_t display_line = (i - off) / 2;
 
-      // Monochrome buffer, 1 bit per pixel.
-      // Each line has 280 pixels, which is 280 / 8 = 35 bytes.
-      // uint8_t *line_buf = (uint8_t *)buf + display_line * 35;
-
+#if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
       // Color buffer, 16 bits per pixel.
       // Each line has 280 pixels, which is 280 * 2 = 560 bytes.
       uint8_t *line_buf = (uint8_t *)buf + display_line * 560;
+#elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
+      // Monochrome buffer, 1 bit per pixel.
+      // Each line has 280 pixels, which is 280 / 8 = 35 bytes.
+      uint8_t *line_buf = (uint8_t *)buf + display_line * 35;
+#endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE
 
       send_line(0, cfg, line_buf);
       GCLR(gen);
@@ -187,6 +175,8 @@ static void sharp_mip_get_capabilities(
 
   capabilities->x_resolution = config->width;
   capabilities->y_resolution = config->height;
+
+#if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
   // TODO: This is wasteful. We are allocating 16 bits per pixel here, and we
   // only need 6 bits per pixel. In 2025-03, Zephyr introduced
   // (https://github.com/zephyrproject-rtos/zephyr/pull/86821) the
@@ -194,10 +184,13 @@ static void sharp_mip_get_capabilities(
   // it for 6-bit color here, saving us half the buffer size.
   capabilities->supported_pixel_formats = PIXEL_FORMAT_RGB_565;
   capabilities->current_pixel_format = PIXEL_FORMAT_RGB_565;
+#elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
+  capabilities->supported_pixel_formats = PIXEL_FORMAT_MONO01;
+  capabilities->current_pixel_format = PIXEL_FORMAT_MONO01;
+#endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE
 
-  // capabilities->supported_pixel_formats = PIXEL_FORMAT_MONO01;
-  // capabilities->current_pixel_format = PIXEL_FORMAT_MONO01;
   capabilities->screen_info = 0;
+
   // TODO: get from config.
   capabilities->current_orientation = DISPLAY_ORIENTATION_NORMAL;
 }

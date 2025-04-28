@@ -48,6 +48,13 @@ int main(void) {
 
   lv_obj_t *scr = lv_scr_act();
 
+  // Text.
+  lv_obj_t *label = lv_label_create(scr);
+  lv_obj_set_width(label, 200);
+  lv_label_set_text(label, "Hello, LVGL!");
+  lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+
+#if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
   // Paint background white.
   static lv_style_t style_bg_white;
   lv_style_init(&style_bg_white);
@@ -72,16 +79,12 @@ int main(void) {
   // (rect is shifted to the right).
   // lv_obj_align(square, LV_ALIGN_CENTER, 0, 0);
 
-  // Red text.
-  lv_obj_t *label = lv_label_create(scr);
-  lv_obj_set_width(label, 200);
-  lv_label_set_text(label, "Hello, LVGL!");
-
+  // Paint text red.
   static lv_style_t style_red;
   lv_style_init(&style_red);
   lv_style_set_text_color(&style_red, lv_color_hex(0xff0000));
   lv_obj_add_style(label, &style_red, LV_PART_MAIN);
-  lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+#endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
 
   while (1) {
     // lv_task_handler();

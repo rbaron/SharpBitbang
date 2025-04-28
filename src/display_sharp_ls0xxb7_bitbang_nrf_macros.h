@@ -81,10 +81,15 @@
 // This is used in the tightest, innermost loop, so we want to keep it fast.
 // We can likely make up some time by connecting all rgb pins to the same port
 // in a next shield revision.
-#define SET_RGB(val) \
-  do {               \
-    SET_RGB_P0(val); \
-    SET_RGB_P1(val); \
+#define SET_RGB(val)   \
+  do {                 \
+    SET_RGB_P0((val)); \
+    SET_RGB_P1((val)); \
   } while (0)
+
+// Convert 5-bit and 6-bit color values to 2 bit values by ignoring the least
+// significant bits.
+#define CVT_52_BITS(val) ((val) >> 3)
+#define CVT_62_BITS(val) ((val) >> 4)
 
 #endif  // _DISPLAY_SHARP_LS0XXB7_BITBANG_NRF_MACROS_H_

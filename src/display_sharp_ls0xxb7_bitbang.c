@@ -72,6 +72,10 @@ static int sharp_mip_init(const struct device *dev) {
   return 0;
 }
 
+static int convert_to_2bit(uint8_t val_5bit) {
+  // Range
+}
+
 static inline void set_rgb(int y, int x, const void *buf) {
   // if (y < 100) {
   // if (((uint8_t *)buf)[280 * y + x] == 0) {
@@ -79,24 +83,29 @@ static inline void set_rgb(int y, int x, const void *buf) {
   // size_t offset = (280 * y + x) / 2;
 
   // Monochrome.
-  size_t byte_pos = (280 / 8 * y + (x / 8));
-  size_t bit_pos = x % 8;
-  if (((uint8_t *)buf)[byte_pos] & (1 << bit_pos)) {
-    // if (((uint8_t *)buf)[y * 280 + x]) {
-    // This looks actually white!
-    SET_RGB(0b000000);
-    return;
-    // } else if (y < (DISPLAY_H * 2) / 3) {
-    //   SET_RGB(0b001100);
-    //   // SET_RGB(0b011111);
-    // } else {
-    //   // SET_RGB(0b110000);
-    //   SET_RGB(0b111111);
-  }
-  // SET_RGB(0b000011);
-  // SET_RGB(0b000);
+  // size_t byte_pos = (280 / 8 * y + (x / 8));
+  // size_t bit_pos = x % 8;
+  // if (((uint8_t *)buf)[byte_pos] & (1 << bit_pos)) {
+  // SET_RGB(0b111111);
+  // }
+
+  // 16-bit color.
+  size_t offset = 2 * (280 * y + x);
+  uint8_t *b = (uint8_t *)buf + offset;
+  // uint8_t r = (((uint8_t *)buf)[offset] >> 3) & 0x1F;
+  uint8_t r = b[0] >> 3;
+  uint8_t g = (b[0] & 0x7) << 2 | (b[1] >> 5);
+  uint8_t b_ = b[1] & 0x1f;
+  SET_RGB((CVT_52_BITS(r) << 4) | (CVT_62_BITS(g) << 2) | (CVT_52_BITS(b_)));
+
+  // if (((uint8_t *)buf)[offset] & 0x01) {
+  //   return;
+  // }
+
   // SET_RGB(0b000000);
-  SET_RGB(0b111111);
+  // return;
+
+  // SET_RGB(0b111111);
 }
 
 static inline void send_line(int y, const struct sharp_mip_config *cfg,
@@ -145,22 +154,22 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
       GCLR(gsp);
     }
 
-    // if (i == 2) {
     if (i == off) {
       send_line(0, cfg, buf);
-      // } else if (i >= 3 && i <= 561) {
     } else if (i >= off + 1 && i <= last) {
       GSET(gen);
       const uint16_t display_line = (i - off) / 2;
+
       // Monochrome buffer, 1 bit per pixel.
       // Each line has 280 pixels, which is 280 / 8 = 35 bytes.
-      uint8_t *line_buf = (uint8_t *)buf + display_line * 35;
+      // uint8_t *line_buf = (uint8_t *)buf + display_line * 35;
 
-      // For 1-bit per pixel,
-      // const uint16_t buf_line = (i - off) % desc->height;
+      // Color buffer, 16 bits per pixel.
+      // Each line has 280 pixels, which is 280 * 2 = 560 bytes.
+      uint8_t *line_buf = (uint8_t *)buf + display_line * 560;
+
       send_line(0, cfg, line_buf);
       GCLR(gen);
-      // } else if (i == 562) {
     } else if (i == last + 1) {
       GSET(gen);
       GCLR(gen);
@@ -168,74 +177,6 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
       GCLR(intb);
     }
   }
-
-  // GCLR(gsp);
-
-  // // Fast-forward gck toggles for partial update.
-  // // - Full update: 0
-  // // - Partial update: total 160 (partial_update_gck_toggles) - 1.
-  // for (int i = 3; i <= partial_update_gck_toggles; i++) {
-  //   GTOG(gck);
-  // }
-
-  // // Send first half-line.
-  // send_line(0, cfg, buf);
-
-  // // for (int i = 3; i <= 561; i++) {
-  // // for (int i = partial_update_gck_toggles + 3; i <= 561; i++) {
-
-  // // How many lines in the buffer?
-  // const uint16_t buf_lines = desc->height;
-
-  // // Full update: l1_lsb, l2_msb, l2_lsb, ..., l280_msb, l280_lsb
-  // // (total 559 -- buffsize * 2 - 1) => [3, 561]
-  // // Partial update: l1_lsb, l2_msb, l2_lsb, ..., 80_msb, l80_lsb
-  // // (total 159 -- buffsize * 2 - 1) => [160, 321]
-  // for (int i = 1; i < 2 * buf_lines; i++) {
-  //   GTOG(gck);
-  //   GSET(gen);
-
-  //   // Check buf size.
-  //   // const uint16_t line = ((i - 2) / 2) % cfg->height;
-  //   // const uint16_t line = ((i - 2) / 2);
-  //   const uint16_t line = i / 2;
-  //   // if (y < desc->height) {
-  //   // if ((i - 2) / 2 < desc->height) {
-  //   send_line(line, cfg, buf);
-  //   // }
-
-  //   GCLR(gen);
-  // }
-
-  // // At this point:
-  // // Full update: 561
-  // // Partial update: 321 =
-
-  // // GCK edge -- no data.
-  // GTOG(gck);
-  // GSET(gen);
-  // GCLR(gen);
-  // GTOG(gck);
-
-  // // At this point:
-  // // Full update: 563
-  // // Partial update: 323 = buf_lines * 2 + 1
-
-  // // Remaining dummy updates.
-  // uint16_t n_done_gck = partial_update_gck_toggles + 2 * buf_lines + 1;
-  // for (int i = 563 - n_done_gck; i <= 563; i++) {
-  //   GTOG(gck);
-  // }
-
-  // for (int i = 564; i <= 568; i++) {
-  //   GTOG(gck);
-  //   if (i == 566) {
-  //     GCLR(intb);
-  //     continue;
-  //   }
-  // }
-
-  // GCLR(intb);
 
   return 0;
 }
@@ -251,10 +192,11 @@ static void sharp_mip_get_capabilities(
   // (https://github.com/zephyrproject-rtos/zephyr/pull/86821) the
   // PIXEL_FORMAT_L_8. It's intended for 8-bit grayscale, but I think we can use
   // it for 6-bit color here, saving us half the buffer size.
-  // capabilities->supported_pixel_formats = PIXEL_FORMAT_RGB_565;
-  // capabilities->current_pixel_format = PIXEL_FORMAT_RGB_565;
-  capabilities->supported_pixel_formats = PIXEL_FORMAT_MONO01;
-  capabilities->current_pixel_format = PIXEL_FORMAT_MONO01;
+  capabilities->supported_pixel_formats = PIXEL_FORMAT_RGB_565;
+  capabilities->current_pixel_format = PIXEL_FORMAT_RGB_565;
+
+  // capabilities->supported_pixel_formats = PIXEL_FORMAT_MONO01;
+  // capabilities->current_pixel_format = PIXEL_FORMAT_MONO01;
   capabilities->screen_info = 0;
   // TODO: get from config.
   capabilities->current_orientation = DISPLAY_ORIENTATION_NORMAL;

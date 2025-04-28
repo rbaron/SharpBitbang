@@ -57,14 +57,59 @@ int main(void) {
   }
 
   // display_
+  lv_obj_t *scr = lv_scr_act();
 
-  lv_obj_t *label = lv_label_create(lv_scr_act());
+  // Create a style
+  static lv_style_t style_bg_white;
+  lv_style_init(&style_bg_white);
+  lv_style_set_bg_color(&style_bg_white, lv_color_white());
+  lv_style_set_bg_opa(&style_bg_white, LV_OPA_COVER);
+  lv_obj_add_style(scr, &style_bg_white, LV_PART_MAIN);
+
+  lv_obj_t *label = lv_label_create(scr);
+  // Color.
+  // lv_style_t style;
+  // lv_style_init(&style);
+  // lv_style_set_text_color(&style, lv_color_hex(0xffff00));
+  // lv_style_set_text_font(&style, LV_FONT_DEFAULT);
+  // lv_obj_set_style_text_color(label, lv_color_hex(0xffff00), 0);
+  // lv_obj_add_style(label, &style, 0);
+
   lv_label_set_text(label, "Hello, LVGL!");
-  lv_obj_align(label, LV_ALIGN_CENTER, -40, -10);
+
+  // Create a style
+  static lv_style_t style_red;
+  lv_style_init(&style_red);
+  // lv_style_set_text_color(&style_red, lv_color_hex(0x00ff00));
+  lv_style_set_text_color(&style_red, lv_color_hex(0xff0000));
+
+  // Apply the style to the label
+  lv_obj_add_style(label, &style_red, LV_PART_MAIN);
+
+  lv_obj_align(label, LV_ALIGN_CENTER, 0, -40);
+
+  // // lv_obj_set_style_text_color(label, lv_color_hex(0xffff00), 0);
+  // lv_obj_set_style_local_text_color(label, LV_LABEL_PART_MAIN,
+  // LV_STATE_DEFAULT,
+  //                                   LV_COLOR_WHITE);
+
+  // lv_obj_align(label, LV_ALIGN_CENTER, -40, -10);
   // lv_obj_align(label, LV_ALIGN_TOP_MID, 10, 0);
   // lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
 
   // display_blanking_off(display_dev);
+
+  // From
+  // lv_obj_t *label1 = lv_label_create(lv_scr_act());
+  // lv_label_set_recolor(label1,
+  //                      true); /*Enable re-coloring by commands in the text*/
+  // lv_label_set_text(label1,
+  //                   "#0000ff Re-color# #ff00ff words# #ff0000 of a# label, "
+  //                   "align the lines to the center "
+  //                   "and wrap long text automatically.");
+  // lv_obj_set_width(label1, 150); /*Set smaller width to make the lines wrap*/
+  // lv_obj_set_style_text_align(label1, LV_TEXT_ALIGN_CENTER, 0);
+  // lv_obj_align(label1, LV_ALIGN_CENTER, 0, -40);
 
   while (1) {
     lv_task_handler();

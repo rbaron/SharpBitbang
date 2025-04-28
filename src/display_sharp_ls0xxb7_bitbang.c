@@ -79,7 +79,7 @@ static inline void set_rgb(int y, int x, const void *buf) {
   size_t offset = 2 * (280 * y + x);
   uint8_t *off_buf = (uint8_t *)buf + offset;
   uint8_t r = off_buf[1] >> 3;
-  uint8_t g = (off_buf[1] & 0x7) << 2 | (off_buf[0] >> 5);
+  uint8_t g = (off_buf[1] & 0x7) << 3 | (off_buf[0] >> 5);
   uint8_t b_ = off_buf[0] & 0x1f;
   SET_RGB((CVT_52_BITS(r) << 4) | (CVT_62_BITS(g) << 2) | (CVT_52_BITS(b_)));
 
@@ -118,14 +118,18 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
                            const void *buf) {
   const struct sharp_mip_config *cfg = dev->config;
 
-  // For example (datasheet): 160.
-  const int off = 2 + y * 2;
-  const int last = off + 2 * desc->height - 1;
+  // Offset for GCK. For full-screen updates, this is 2. For partial updates,
+  // it's 2 plus the number of half-lines to skip.
+  const int gck_offset = 2 + y * 2;
+
+  // The last GCK index of the last sent half-line.
+  const int gck_last_half_line = gck_offset + 2 * desc->height - 1;
 
   LOG_DBG(
       "Sharp MIP display write. x: %d, y: %d; buf size: %d (buf height: %d, "
       "buf width: %d). Offset: %d, last: %d",
-      x, y, desc->buf_size, desc->height, desc->width, off, last);
+      x, y, desc->buf_size, desc->height, desc->width, gck_offset,
+      gck_last_half_line);
 
   GCLR(gck);
 
@@ -140,11 +144,11 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
       GCLR(gsp);
     }
 
-    if (i == off) {
+    if (i == gck_offset) {
       send_line(0, cfg, buf);
-    } else if (i >= off + 1 && i <= last) {
+    } else if (i >= gck_offset + 1 && i <= gck_last_half_line) {
       GSET(gen);
-      const uint16_t display_line = (i - off) / 2;
+      const uint16_t display_line = (i - gck_offset) / 2;
 
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
       // Color buffer, 16 bits per pixel.
@@ -158,7 +162,7 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
 
       send_line(0, cfg, line_buf);
       GCLR(gen);
-    } else if (i == last + 1) {
+    } else if (i == gck_last_half_line + 1) {
       GSET(gen);
       GCLR(gen);
     } else if (i == 566) {
@@ -177,7 +181,7 @@ static void sharp_mip_get_capabilities(
   capabilities->y_resolution = config->height;
 
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
-  // TODO: This is wasteful. We are allocating 16 bits per pixel here, and we
+  // TODO: This is wasteful. We are requesting 16 bits per pixel here, and we
   // only need 6 bits per pixel. In 2025-03, Zephyr introduced
   // (https://github.com/zephyrproject-rtos/zephyr/pull/86821) the
   // PIXEL_FORMAT_L_8. It's intended for 8-bit grayscale, but I think we can use

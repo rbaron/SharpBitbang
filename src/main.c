@@ -48,11 +48,15 @@ int main(void) {
 
   lv_obj_t *scr = lv_scr_act();
 
+  // Square.
+  lv_obj_t *square = lv_obj_create(scr);
+
   // Text.
   lv_obj_t *label = lv_label_create(scr);
-  lv_obj_set_width(label, 200);
-  lv_label_set_text(label, "Hello, LVGL!");
-  lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+  lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(label, 100);
+  lv_label_set_text(label, "Hello, world");
+  lv_obj_align(label, LV_ALIGN_CENTER, -58, 0);
 
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
   // Paint background white.
@@ -68,12 +72,11 @@ int main(void) {
   lv_style_set_bg_color(&style, lv_palette_main(LV_PALETTE_GREEN));
   lv_style_set_border_color(&style, lv_palette_lighten(LV_PALETTE_GREEN, 3));
   lv_style_set_border_width(&style, 3);
-  lv_obj_t *square = lv_obj_create(scr);
   lv_obj_add_style(square, &style, LV_PART_MAIN);
   lv_obj_set_style_bg_color(square, lv_palette_main(LV_PALETTE_ORANGE),
                             LV_PART_MAIN);
   lv_obj_set_size(square, 100, 100);
-  lv_obj_set_pos(square, 280 / 2 - 110, 280 / 2 - 50);
+  lv_obj_set_pos(square, 280 / 2 - 120, 280 / 2 - 50);
   lv_obj_update_layout(square);
   // TODO: There's a bug somewhere that causes center alignment not to work
   // (rect is shifted to the right).

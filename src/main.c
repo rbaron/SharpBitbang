@@ -59,8 +59,9 @@ int main(void) {
   // display_
 
   lv_obj_t *label = lv_label_create(lv_scr_act());
-  lv_label_set_text(label, "Hello, LVGL!");
-  lv_obj_align(label, LV_ALIGN_CENTER, -40, 0);
+  lv_label_set_text(label, "Kello, LVGL!");
+  lv_obj_align(label, LV_ALIGN_CENTER, -40, -10);
+  // lv_obj_align(label, LV_ALIGN_TOP_MID, 10, 0);
   // lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
 
   // display_blanking_off(display_dev);

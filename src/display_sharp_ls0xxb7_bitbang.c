@@ -121,47 +121,121 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
                            const uint16_t y,
                            const struct display_buffer_descriptor *desc,
                            const void *buf) {
-  if (y > 0) {
-    return 0;
-  }
   const struct sharp_mip_config *cfg = dev->config;
 
-  LOG_DBG("Sharp MIP display write. x: %d, y: %d; buf size: %d", x, y,
-          desc->buf_size);
+  // For example (datasheet): 160.
+  const int off = 2 + y * 2;
+  const int last = off + 2 * desc->height - 1;
+
+  LOG_DBG(
+      "Sharp MIP display write. x: %d, y: %d; buf size: %d (buf height: %d, "
+      "buf width: %d). Offset: %d, last: %d",
+      x, y, desc->buf_size, desc->height, desc->width, off, last);
+
+  GCLR(gck);
 
   GSET(intb);
   GSET(gsp);
-  GSET(gck);
-  GCLR(gck);
 
-  send_line(0, cfg, buf);
-
-  GCLR(gsp);
-
-  for (int i = 3; i <= 561; i++) {
+  // 1-indexed to match the datasheet and improve debugging.
+  for (int i = 1; i <= 568; i++) {
     GTOG(gck);
-    GSET(gen);
 
-    send_line((i - 2) / 2, cfg, buf);
+    if (i == 2) {
+      GCLR(gsp);
+    }
 
-    GCLR(gen);
-  }
+    // if (i == 2) {
+    if (i == off) {
+      send_line(0, cfg, buf);
+      // } else if (i >= 3 && i <= 561) {
+    } else if (i >= off + 1 && i <= last) {
+      GSET(gen);
+      const uint16_t display_line = (i - off) / 2;
+      // Monochrome buffer, 1 bit per pixel.
+      // Each line has 280 pixels, which is 280 / 8 = 35 bytes.
+      uint8_t *line_buf = (uint8_t *)buf + display_line * 35;
 
-  // GCK edge 562 -- no data.
-  GTOG(gck);
-  GSET(gen);
-  GCLR(gen);
-  GTOG(gck);
-
-  for (int i = 563; i <= 568; i++) {
-    GTOG(gck);
-    if (i == 566) {
+      // For 1-bit per pixel,
+      // const uint16_t buf_line = (i - off) % desc->height;
+      send_line(0, cfg, line_buf);
+      GCLR(gen);
+      // } else if (i == 562) {
+    } else if (i == last + 1) {
+      GSET(gen);
+      GCLR(gen);
+    } else if (i == 566) {
       GCLR(intb);
-      continue;
     }
   }
 
-  GCLR(intb);
+  // GCLR(gsp);
+
+  // // Fast-forward gck toggles for partial update.
+  // // - Full update: 0
+  // // - Partial update: total 160 (partial_update_gck_toggles) - 1.
+  // for (int i = 3; i <= partial_update_gck_toggles; i++) {
+  //   GTOG(gck);
+  // }
+
+  // // Send first half-line.
+  // send_line(0, cfg, buf);
+
+  // // for (int i = 3; i <= 561; i++) {
+  // // for (int i = partial_update_gck_toggles + 3; i <= 561; i++) {
+
+  // // How many lines in the buffer?
+  // const uint16_t buf_lines = desc->height;
+
+  // // Full update: l1_lsb, l2_msb, l2_lsb, ..., l280_msb, l280_lsb
+  // // (total 559 -- buffsize * 2 - 1) => [3, 561]
+  // // Partial update: l1_lsb, l2_msb, l2_lsb, ..., 80_msb, l80_lsb
+  // // (total 159 -- buffsize * 2 - 1) => [160, 321]
+  // for (int i = 1; i < 2 * buf_lines; i++) {
+  //   GTOG(gck);
+  //   GSET(gen);
+
+  //   // Check buf size.
+  //   // const uint16_t line = ((i - 2) / 2) % cfg->height;
+  //   // const uint16_t line = ((i - 2) / 2);
+  //   const uint16_t line = i / 2;
+  //   // if (y < desc->height) {
+  //   // if ((i - 2) / 2 < desc->height) {
+  //   send_line(line, cfg, buf);
+  //   // }
+
+  //   GCLR(gen);
+  // }
+
+  // // At this point:
+  // // Full update: 561
+  // // Partial update: 321 =
+
+  // // GCK edge -- no data.
+  // GTOG(gck);
+  // GSET(gen);
+  // GCLR(gen);
+  // GTOG(gck);
+
+  // // At this point:
+  // // Full update: 563
+  // // Partial update: 323 = buf_lines * 2 + 1
+
+  // // Remaining dummy updates.
+  // uint16_t n_done_gck = partial_update_gck_toggles + 2 * buf_lines + 1;
+  // for (int i = 563 - n_done_gck; i <= 563; i++) {
+  //   GTOG(gck);
+  // }
+
+  // for (int i = 564; i <= 568; i++) {
+  //   GTOG(gck);
+  //   if (i == 566) {
+  //     GCLR(intb);
+  //     continue;
+  //   }
+  // }
+
+  // GCLR(intb);
 
   return 0;
 }

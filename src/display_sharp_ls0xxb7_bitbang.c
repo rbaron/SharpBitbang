@@ -51,7 +51,7 @@ static void vcom_thread(void *config, void *unused1, void *unused2) {
   while (1) {
     gpio_pin_toggle_dt(&cfg->vcom_vb);
     gpio_pin_toggle_dt(&cfg->va);
-    k_msleep(2000 / cfg->vcom_freq);
+    k_msleep(1000 / cfg->vcom_freq);
   }
 }
 

@@ -18,14 +18,15 @@ LOG_MODULE_REGISTER(sharp_mip_parallel, CONFIG_DISPLAY_LOG_LEVEL);
 #include "display_sharp_ls0xxb7_bitbang_nrf_macros.h"
 
 // Private mutable data for the driver.
-struct sharp_mip_data {};
+struct sharp_mip_data {
+  K_KERNEL_STACK_MEMBER(vcom_thread_stack, /*size=*/256);
+  struct k_thread vcom_thread;
+};
 
 // Private const data for the driver.
 struct sharp_mip_config {
   uint16_t height;
   uint16_t width;
-  struct gpio_dt_spec vcom_vb;
-  struct gpio_dt_spec va;
 
   struct gpio_dt_spec intb;
   struct gpio_dt_spec gsp;
@@ -34,7 +35,25 @@ struct sharp_mip_config {
   struct gpio_dt_spec bsp;
   struct gpio_dt_spec bck;
   struct gpio_dt_spec rgb[6];
+
+  struct gpio_dt_spec vcom_vb;
+  struct gpio_dt_spec va;
+  int vcom_freq;
 };
+
+static void vcom_thread(void *config, void *unused1, void *unused2) {
+  const struct sharp_mip_config *cfg = config;
+
+  // Ensure out of phase.
+  gpio_pin_set_dt(&cfg->vcom_vb, 1);
+  gpio_pin_set_dt(&cfg->va, 0);
+
+  while (1) {
+    gpio_pin_toggle_dt(&cfg->vcom_vb);
+    gpio_pin_toggle_dt(&cfg->va);
+    k_msleep(2000 / cfg->vcom_freq);
+  }
+}
 
 #define SET_GPIO_OUTPUT(ret, name)                       \
   do {                                                   \
@@ -51,6 +70,8 @@ struct sharp_mip_config {
 
 static int sharp_mip_init(const struct device *dev) {
   const struct sharp_mip_config *config = dev->config;
+  struct sharp_mip_data *data = dev->data;
+
   int ret;
 
   SET_GPIO_OUTPUT(ret, config->intb);
@@ -63,11 +84,13 @@ static int sharp_mip_init(const struct device *dev) {
     SET_GPIO_OUTPUT(ret, config->rgb[i]);
   }
 
-  // TODO: Create a simple Zephyr thread to generate VCOM/VB and VA signals.
-  // This must be optionally disabled by config, as users may generate these
-  // signals elsewhere, possibly also in hardware.
-  // SET_GPIO_OUTPUT(ret, config->vcom_vb);
-  // SET_GPIO_OUTPUT(ret, config->va);
+  SET_GPIO_OUTPUT(ret, config->vcom_vb);
+  SET_GPIO_OUTPUT(ret, config->va);
+  k_thread_create(&data->vcom_thread, data->vcom_thread_stack,
+                  K_KERNEL_STACK_SIZEOF(data->vcom_thread_stack),
+                  (k_thread_entry_t)vcom_thread, /*arg1=*/(void *)config,
+                  /*arg2=*/NULL, /*arg3=*/NULL, K_PRIO_PREEMPT(7),
+                  /*options=*/0, K_NO_WAIT);
 
   LOG_DBG("Sharp MIP display initialized. Resolution: %dx%d", config->width,
           config->height);
@@ -122,6 +145,16 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
                            const void *buf) {
   const struct sharp_mip_config *cfg = dev->config;
 
+  // The display only supports partial updates at full rows. I.e.: we can start
+  // drawing at (y = 10, x = 0), but _not_ at (y, x = 10).
+  if (x != 0) {
+    LOG_ERR(
+        "Full screen or partial updates must be at full rows! x: %d, y = %d, "
+        "buf size: %d",
+        x, y, desc->buf_size);
+    return -ENOTSUP;
+  }
+
   // Offset for GCK. For full-screen updates, this is 2. For partial updates,
   // it's 2 plus the number of half-lines to skip.
   const int gck_offset = 2 + y * 2;
@@ -136,7 +169,6 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
       gck_last_half_line);
 
   GCLR(gck);
-
   GSET(intb);
   GSET(gsp);
 
@@ -156,8 +188,9 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
 
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
       // Color buffer, 16 bits per pixel.
-      // Each line has 280 pixels, which is 280 * 2 = 560 bytes.
-      uint8_t *line_buf = (uint8_t *)buf + display_line * 560;
+      // OLD: Each line has 280 pixels, which is 280 * 2 = 560 bytes.
+      // Each line has buf_width pixels, which is buf_width * 2.
+      uint8_t *line_buf = (uint8_t *)buf + display_line * desc->width * 2;
 #elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
       // Monochrome buffer, 1 bit per pixel.
       // Each line has 280 pixels, which is 280 / 8 = 35 bytes.
@@ -192,12 +225,14 @@ static void sharp_mip_get_capabilities(
   // it for 6-bit color here, saving us half the buffer size.
   capabilities->supported_pixel_formats = PIXEL_FORMAT_RGB_565;
   capabilities->current_pixel_format = PIXEL_FORMAT_RGB_565;
+  capabilities->screen_info = 0;
 #elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
   capabilities->supported_pixel_formats = PIXEL_FORMAT_MONO01;
   capabilities->current_pixel_format = PIXEL_FORMAT_MONO01;
-#endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE
 
-  capabilities->screen_info = 0;
+  // Ensure updates are aligned to rows.
+  capabilities->screen_info = SCREEN_INFO_X_ALIGNMENT_WIDTH;
+#endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE
 
   // TODO: get from config.
   capabilities->current_orientation = DISPLAY_ORIENTATION_NORMAL;
@@ -213,8 +248,6 @@ struct display_driver_api sharp_mip_driver_api = {
   static const struct sharp_mip_config config_##node_id = {        \
       .height = DT_PROP(node_id, height),                          \
       .width = DT_PROP(node_id, width),                            \
-      .vcom_vb = GPIO_DT_SPEC_GET(node_id, vb_gpios),              \
-      .va = GPIO_DT_SPEC_GET(node_id, va_gpios),                   \
       .intb = GPIO_DT_SPEC_GET(node_id, intb_gpios),               \
       .gsp = GPIO_DT_SPEC_GET(node_id, gsp_gpios),                 \
       .gck = GPIO_DT_SPEC_GET(node_id, gck_gpios),                 \
@@ -227,6 +260,9 @@ struct display_driver_api sharp_mip_driver_api = {
               GPIO_DT_SPEC_GET_BY_IDX(node_id, rgb_gpios, 3),      \
               GPIO_DT_SPEC_GET_BY_IDX(node_id, rgb_gpios, 4),      \
               GPIO_DT_SPEC_GET_BY_IDX(node_id, rgb_gpios, 5)},     \
+      .vcom_vb = GPIO_DT_SPEC_GET(node_id, vb_gpios),              \
+      .va = GPIO_DT_SPEC_GET(node_id, va_gpios),                   \
+      .vcom_freq = DT_PROP(node_id, vcom_freq),                    \
   };                                                               \
   DEVICE_DT_DEFINE(node_id, sharp_mip_init, NULL, &data_##node_id, \
                    &config_##node_id, POST_KERNEL,                 \

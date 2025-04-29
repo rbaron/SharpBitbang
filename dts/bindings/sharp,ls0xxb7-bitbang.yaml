@@ -49,15 +49,20 @@ properties:
     type: phandle-array
     required: true
     description: |
-      Black signal voltage for LCD, also connected to VCOM in this implementation
+      VB black signal voltage for LCD, also connected to VCOM.
+
+      If omitted, the VB/VCOM signals are not generated and the pin
+      is assumed to be driven by other means.
   va-gpios:
     type: phandle-array
-    required: true
+    required: false
     description: |
-      White signal voltage for LCD
+      VA, white signal voltage for LCD.
+
+      If omitted, the VA signal is not generated and the pin is assumed to be driven by other means.
   vcom-freq:
     type: int
-    required: true
+    default: 30
     enum:
       - 30
       - 60

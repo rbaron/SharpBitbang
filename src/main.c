@@ -1,4 +1,5 @@
 #include <lvgl.h>
+#include <lvgl_display.h>
 // #include <lvgl_input_device.h>
 #include <stdio.h>
 #include <zephyr/device.h>
@@ -39,7 +40,7 @@ int main(void) {
   k_busy_wait(1000);
 
   // Start alternating VCOM/VB and VA signals.
-  disp_vcom_init();
+  // disp_vcom_init();
 
   if (!device_is_ready(display_dev)) {
     LOG_ERR("Device not ready, aborting test");
@@ -54,9 +55,9 @@ int main(void) {
   // Text.
   lv_obj_t *label = lv_label_create(scr);
   lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
-  lv_obj_set_width(label, 100);
+  lv_obj_set_width(label, 110);
   lv_label_set_text(label, "Hello, world");
-  lv_obj_align(label, LV_ALIGN_CENTER, -58, 0);
+  lv_obj_align(label, LV_ALIGN_CENTER, -62, 0);
 
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
   // Paint background white.
@@ -87,10 +88,16 @@ int main(void) {
   lv_obj_add_style(label, &style_red, LV_PART_MAIN);
 #endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
 
+  int x = 100;
+  char buf[32];
   while (1) {
-    // lv_task_handler();
-    lv_timer_handler();
-    k_msleep(100);
+    lv_task_handler();
+    k_msleep(1000);
+
+    // Update counter.
+    snprintf(buf, sizeof(buf), "x: %d", x);
+    lv_label_set_text(label, buf);
+    x += 97;
   }
 
   return 0;

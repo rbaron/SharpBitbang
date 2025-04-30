@@ -225,14 +225,14 @@ static void sharp_mip_get_capabilities(
   // it for 6-bit color here, saving us half the buffer size.
   capabilities->supported_pixel_formats = PIXEL_FORMAT_RGB_565;
   capabilities->current_pixel_format = PIXEL_FORMAT_RGB_565;
-  capabilities->screen_info = 0;
 #elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
   capabilities->supported_pixel_formats = PIXEL_FORMAT_MONO01;
   capabilities->current_pixel_format = PIXEL_FORMAT_MONO01;
-
-  // Ensure updates are aligned to rows.
-  capabilities->screen_info = SCREEN_INFO_X_ALIGNMENT_WIDTH;
 #endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE
+
+  // We need partial updates to contain full rows. Note that as of writing, this
+  // flag only takes effect for monochrome pixel formats.
+  capabilities->screen_info = SCREEN_INFO_X_ALIGNMENT_WIDTH;
 
   // TODO: get from config.
   capabilities->current_orientation = DISPLAY_ORIENTATION_NORMAL;

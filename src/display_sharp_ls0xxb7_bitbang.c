@@ -100,15 +100,25 @@ static int sharp_mip_init(const struct device *dev) {
 
 static inline void set_rgb(bool is_msb, int x0, const void *buf) {
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
-  // Our display supports 6-bit colors, but Zephyr + LVGL uses at least 16-bit
-  // colors. Here we need to convert them.
-  size_t offset = 2 * (280 * y + x);
+
+  size_t offset = 2 * x0;
   uint8_t *off_buf = (uint8_t *)buf + offset;
-  uint8_t r = off_buf[1] >> 3;
-  uint8_t g = (off_buf[1] & 0x7) << 3 | (off_buf[0] >> 5);
-  uint8_t b_ = off_buf[0] & 0x1f;
-  SET_RGB((CVT_5_TO_2_BITS(r) << 4) | (CVT_6_TO_2_BITS(g) << 2) |
-          (CVT_5_TO_2_BITS(b_)));
+  uint8_t r1 = off_buf[1] >> 3;
+  uint8_t g1 = (off_buf[1] & 0x7) << 3 | (off_buf[0] >> 5);
+  uint8_t b1 = off_buf[0] & 0x1f;
+
+  uint8_t r0 = off_buf[3] >> 3;
+  uint8_t g0 = (off_buf[3] & 0x7) << 3 | (off_buf[2] >> 5);
+  uint8_t b0 = off_buf[2] & 0x1f;
+
+#define MORLSB(v, is_msb) ((v) >> (is_msb ? 0 : 1) & 0x1)
+
+  SET_RGB((MORLSB(CVT_5_TO_2_BITS(r0), is_msb) << 5) |  // r0
+          (MORLSB(CVT_5_TO_2_BITS(r1), is_msb) << 4) |  // r1
+          (MORLSB(CVT_6_TO_2_BITS(g0), is_msb) << 3) |  // g0
+          (MORLSB(CVT_6_TO_2_BITS(g1), is_msb) << 2) |  // g1
+          (MORLSB(CVT_5_TO_2_BITS(b0), is_msb) << 1) |  // b0
+          (MORLSB(CVT_5_TO_2_BITS(b1), is_msb) << 0));  // b1
 
 #elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
 

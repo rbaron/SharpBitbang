@@ -79,12 +79,7 @@ int main(void) {
   lv_style_set_border_color(&style, lv_color_hex(0x0000ff));
   lv_style_set_border_width(&style, 3);
   lv_obj_add_style(square, &style, LV_PART_MAIN);
-  lv_obj_set_size(square, 100, 100);
-  lv_obj_set_pos(square, 280 / 2 - 120, 280 / 2 - 50);
   lv_obj_update_layout(square);
-  // TODO: There's a bug somewhere that causes center alignment not to work
-  // (rect is shifted to the right).
-  // lv_obj_align(square, LV_ALIGN_CENTER, 0, 0);
 
   // Paint text red.
   static lv_style_t style_red;

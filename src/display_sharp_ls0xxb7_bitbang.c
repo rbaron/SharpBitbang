@@ -20,7 +20,9 @@ LOG_MODULE_REGISTER(sharp_mip_parallel, CONFIG_DISPLAY_LOG_LEVEL);
 struct rgb_port {
   const struct device *port;
   // Bitmask of GPIO indexes into config->rgb that are connected to this port.
-  uint8_t pin_mask;
+  uint8_t rgb_idx_mask;
+  // Port mask.
+  gpio_port_pins_t port_mask;
 };
 
 // Private mutable data for the driver.
@@ -110,7 +112,8 @@ static int sharp_mip_init(const struct device *dev) {
       if (data->rgb_ports[port_idx].port == config->rgb[gpio_idx].port ||
           data->rgb_ports[port_idx].port == NULL) {
         data->rgb_ports[port_idx].port = config->rgb[gpio_idx].port;
-        data->rgb_ports[port_idx].pin_mask |= (1 << gpio_idx);
+        data->rgb_ports[port_idx].rgb_idx_mask |= (1 << gpio_idx);
+        data->rgb_ports[port_idx].port_mask |= (1 << config->rgb[gpio_idx].pin);
         break;
       }
     }
@@ -122,7 +125,7 @@ static int sharp_mip_init(const struct device *dev) {
   for (int i = 0; i < sizeof(data->rgb_ports) / sizeof(data->rgb_ports[0]);
        i++) {
     LOG_DBG("RGB port %d: %p, mask: 0x%02x", i, data->rgb_ports[i].port,
-            data->rgb_ports[i].pin_mask);
+            data->rgb_ports[i].rgb_idx_mask);
   }
 
   return 0;
@@ -143,14 +146,11 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
 
 #define MORLSB(v, is_msb) ((v) >> ((is_msb) ? 0 : 1) & 0x1)
 
-// Updates val and mask for a given port, rgb gpio index and a 2-bit value.
-#define UPDATE_VAL_MASK(port, rgb_idx, v2bit)                       \
-  do {                                                              \
-    if (data->rgb_ports[(port)].pin_mask & (1 << (rgb_idx))) {      \
-      val |= (MORLSB((v2bit), is_msb)) << D_GPIO_PIN(rgb, rgb_idx); \
-      mask |= (1 << D_GPIO_PIN(rgb, rgb_idx));                      \
-    }                                                               \
-  } while (0)
+// Set bit on port register if rgb_idx is on this port.
+#define VAL_BIT_IF_ON_PORT(port, rgb_idx, v2bit)               \
+  ((data->rgb_ports[(port)].rgb_idx_mask & BIT(rgb_idx))       \
+       ? (MORLSB((v2bit), is_msb) << D_GPIO_PIN(rgb, rgb_idx)) \
+       : 0)
 
   // Offset into buf for 16-bit RGB565 data at column x0.
   const uint8_t *b = buf + 2 * x0;
@@ -162,15 +162,14 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
       continue;
     }
 
-    gpio_port_value_t val = 0;
-    gpio_port_pins_t mask = 0;
-    UPDATE_VAL_MASK(i, 0, _R(b + 0));  // r0
-    UPDATE_VAL_MASK(i, 1, _R(b + 2));  // r1
-    UPDATE_VAL_MASK(i, 2, _G(b + 0));  // g0
-    UPDATE_VAL_MASK(i, 3, _G(b + 2));  // g1
-    UPDATE_VAL_MASK(i, 4, _B(b + 0));  // b0
-    UPDATE_VAL_MASK(i, 5, _B(b + 2));  // b1
-    gpio_port_set_masked(data->rgb_ports[i].port, mask, val);
+    const gpio_port_value_t val = VAL_BIT_IF_ON_PORT(i, 0, _R(b + 0)) |
+                                  VAL_BIT_IF_ON_PORT(i, 1, _R(b + 2)) |
+                                  VAL_BIT_IF_ON_PORT(i, 2, _G(b + 0)) |
+                                  VAL_BIT_IF_ON_PORT(i, 3, _G(b + 2)) |
+                                  VAL_BIT_IF_ON_PORT(i, 4, _B(b + 0)) |
+                                  VAL_BIT_IF_ON_PORT(i, 5, _B(b + 2));
+    gpio_port_set_masked(data->rgb_ports[i].port, data->rgb_ports[i].port_mask,
+                         val);
   }
 
 #elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
@@ -320,8 +319,8 @@ struct display_driver_api sharp_mip_driver_api = {
   static struct sharp_mip_data data_##node_id = {                  \
       .rgb_ports =                                                 \
           {                                                        \
-              {.port = NULL, .pin_mask = 0},                       \
-              {.port = NULL, .pin_mask = 0},                       \
+              {.port = NULL, .rgb_idx_mask = 0, .port_mask = 0},   \
+              {.port = NULL, .rgb_idx_mask = 0, .port_mask = 0},   \
           },                                                       \
   };                                                               \
   static const struct sharp_mip_config config_##node_id = {        \

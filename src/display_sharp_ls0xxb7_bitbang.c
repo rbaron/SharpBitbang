@@ -17,10 +17,19 @@ LOG_MODULE_REGISTER(sharp_mip_parallel, CONFIG_DISPLAY_LOG_LEVEL);
 
 #include "display_sharp_ls0xxb7_bitbang_nrf_macros.h"
 
+struct rgb_port {
+  const struct device *port;
+  // Bitmask of GPIO indexes into config->rgb that are connected to this port.
+  uint8_t pin_mask;
+};
+
 // Private mutable data for the driver.
 struct sharp_mip_data {
   K_KERNEL_STACK_MEMBER(vcom_thread_stack, /*size=*/256);
   struct k_thread vcom_thread;
+
+  // Optimization for RGB pins.
+  struct rgb_port rgb_ports[2];
 };
 
 // Private const data for the driver.
@@ -92,17 +101,39 @@ static int sharp_mip_init(const struct device *dev) {
                   /*arg2=*/NULL, /*arg3=*/NULL, K_PRIO_PREEMPT(7),
                   /*options=*/0, K_NO_WAIT);
 
+  // Collect RGB gpios into data->rgb_ports.
+  for (int gpio_idx = 0;
+       gpio_idx < sizeof(config->rgb) / sizeof(config->rgb[0]); gpio_idx++) {
+    for (int port_idx = 0;
+         port_idx < sizeof(data->rgb_ports) / sizeof(data->rgb_ports[0]);
+         port_idx++) {
+      if (data->rgb_ports[port_idx].port == config->rgb[gpio_idx].port ||
+          data->rgb_ports[port_idx].port == NULL) {
+        data->rgb_ports[port_idx].port = config->rgb[gpio_idx].port;
+        data->rgb_ports[port_idx].pin_mask |= (1 << gpio_idx);
+        break;
+      }
+    }
+  }
+
   LOG_DBG("Sharp MIP display initialized. Resolution: %dx%d", config->width,
           config->height);
+
+  for (int i = 0; i < sizeof(data->rgb_ports) / sizeof(data->rgb_ports[0]);
+       i++) {
+    LOG_DBG("RGB port %d: %p, mask: 0x%02x", i, data->rgb_ports[i].port,
+            data->rgb_ports[i].pin_mask);
+  }
 
   return 0;
 }
 
-static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf) {
+static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
+                           const struct sharp_mip_data *data) {
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
 
   // Offset into buf for 16-bit RGB565 data at column x0.
-  uint8_t *b = buf + 2 * x0;
+  const uint8_t *b = buf + 2 * x0;
 
 // Convert from RGB565 to RGB222 by dropping the least significant bits.
 #define CVT_5_TO_2_BITS(val) (((val) >> 3) & 0x03)
@@ -114,12 +145,51 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf) {
 
 #define MORLSB(v, is_msb) ((v) >> ((is_msb) ? 0 : 1) & 0x1)
 
-  SET_RGB((MORLSB(_R(b + 2), is_msb) << 5) |  // r0
-          (MORLSB(_R(b + 0), is_msb) << 4) |  // r1
-          (MORLSB(_G(b + 2), is_msb) << 3) |  // g0
-          (MORLSB(_G(b + 0), is_msb) << 2) |  // g1
-          (MORLSB(_B(b + 2), is_msb) << 1) |  // b0
-          (MORLSB(_B(b + 0), is_msb) << 0));  // b1
+  for (int i = 0; i < sizeof(data->rgb_ports) / sizeof(data->rgb_ports[0]);
+       i++) {
+    // Skip port if it's not connected to any RGB pins.
+    if (data->rgb_ports[i].port == NULL) {
+      continue;
+    }
+
+    gpio_port_value_t val = 0;
+    gpio_port_pins_t mask = 0;
+
+    // TODO: refactor this spaghetti.
+    // Is r0 connected to this port?
+    if (data->rgb_ports[i].pin_mask & (1 << 0)) {
+      val |= (MORLSB(_R(b + 0), is_msb)) << D_GPIO_PIN(rgb, 0);
+      mask |= (1 << D_GPIO_PIN(rgb, 0));
+    }
+    // Is r1 connected to this port?
+    if (data->rgb_ports[i].pin_mask & (1 << 1)) {
+      val |= (MORLSB(_R(b + 2), is_msb)) << D_GPIO_PIN(rgb, 1);
+      mask |= (1 << D_GPIO_PIN(rgb, 1));
+    }
+
+    // Is g0 connected to this port?
+    if (data->rgb_ports[i].pin_mask & (1 << 2)) {
+      val |= (MORLSB(_G(b + 0), is_msb)) << D_GPIO_PIN(rgb, 2);
+      mask |= (1 << D_GPIO_PIN(rgb, 2));
+    }
+    // Is g1 connected to this port?
+    if (data->rgb_ports[i].pin_mask & (1 << 3)) {
+      val |= (MORLSB(_G(b + 2), is_msb)) << D_GPIO_PIN(rgb, 3);
+      mask |= (1 << D_GPIO_PIN(rgb, 3));
+    }
+    // Is b0 connected to this port?
+    if (data->rgb_ports[i].pin_mask & (1 << 4)) {
+      val |= (MORLSB(_B(b + 0), is_msb)) << D_GPIO_PIN(rgb, 4);
+      mask |= (1 << D_GPIO_PIN(rgb, 4));
+    }
+    // Is b1 connected to this port?
+    if (data->rgb_ports[i].pin_mask & (1 << 5)) {
+      val |= (MORLSB(_B(b + 2), is_msb)) << D_GPIO_PIN(rgb, 5);
+      mask |= (1 << D_GPIO_PIN(rgb, 5));
+    }
+
+    gpio_port_set_masked(data->rgb_ports[i].port, mask, val);
+  }
 
 #elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
 
@@ -139,7 +209,8 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf) {
 
 static inline void send_half_line(bool is_msb,
                                   const struct sharp_mip_config *cfg,
-                                  const void *buf) {
+                                  const void *buf,
+                                  const struct sharp_mip_data *data) {
   GCLR(bsp);
   GSET(bsp);
 
@@ -151,7 +222,7 @@ static inline void send_half_line(bool is_msb,
     }
     if (i >= 1 && i <= 140) {
       // Prepare RGB pins for the next BCK edge.
-      set_rgb(is_msb, /*x0=*/2 * (i - 1), buf);
+      set_rgb(is_msb, /*x0=*/2 * (i - 1), buf, data);
     }
   }
 }
@@ -179,11 +250,10 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
   // The last GCK index of the last sent half-line.
   const int gck_last_half_line = gck_offset + 2 * desc->height - 1;
 
-  LOG_DBG(
-      "Sharp MIP display write. x: %d, y: %d; buf size: %d (buf height: %d, "
-      "buf width: %d). Offset: %d, last: %d",
-      x, y, desc->buf_size, desc->height, desc->width, gck_offset,
-      gck_last_half_line);
+  // LOG_DBG(
+  //     "Sharp MIP display write. x: %d, y: %d; buf size: %d (buf height: %d,
+  //     " "buf width: %d). Offset: %d, last: %d", x, y, desc->buf_size,
+  //     desc->height, desc->width, gck_offset, gck_last_half_line);
 
   GCLR(gck);
   GSET(intb);
@@ -198,7 +268,7 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
     }
 
     if (i == gck_offset) {
-      send_half_line(/*is_msb=*/true, cfg, buf);
+      send_half_line(/*is_msb=*/true, cfg, buf, dev->data);
     } else if (i >= gck_offset + 1 && i <= gck_last_half_line) {
       GSET(gen);
 
@@ -218,7 +288,7 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
       uint8_t *line_buf = (uint8_t *)buf + display_line * 35;
 #endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE
 
-      send_half_line(is_msb, cfg, line_buf);
+      send_half_line(is_msb, cfg, line_buf, dev->data);
       GCLR(gen);
     } else if (i == gck_last_half_line + 1) {
       GSET(gen);
@@ -265,7 +335,13 @@ struct display_driver_api sharp_mip_driver_api = {
 };
 
 #define SHARP_MIP_DEFINE(node_id)                                  \
-  static struct sharp_mip_data data_##node_id;                     \
+  static struct sharp_mip_data data_##node_id = {                  \
+      .rgb_ports =                                                 \
+          {                                                        \
+              {.port = NULL, .pin_mask = 0},                       \
+              {.port = NULL, .pin_mask = 0},                       \
+          },                                                       \
+  };                                                               \
   static const struct sharp_mip_config config_##node_id = {        \
       .height = DT_PROP(node_id, height),                          \
       .width = DT_PROP(node_id, width),                            \

@@ -62,6 +62,7 @@ int main(void) {
   static lv_style_t style_bg_white;
   lv_style_init(&style_bg_white);
   lv_style_set_bg_color(&style_bg_white, lv_color_white());
+  // lv_style_set_bg_color(&style_bg_white, lv_color_hex(0x0000ff));
   lv_style_set_bg_opa(&style_bg_white, LV_OPA_COVER);
   lv_obj_add_style(scr, &style_bg_white, LV_PART_MAIN);
 

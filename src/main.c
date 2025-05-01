@@ -1,6 +1,5 @@
 #include <lvgl.h>
 #include <lvgl_display.h>
-// #include <lvgl_input_device.h>
 #include <stdio.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/display.h>
@@ -10,9 +9,6 @@
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(main, CONFIG_DISPLAY_LOG_LEVEL);
-
-#include "disp_vcom.h"
-#include "display_sharp_ls0xxb7_bitbang_nrf_macros.h"
 
 #define DISPLAY_H DT_PROP(DT_NODELABEL(sharp_display), height)
 #define DISPLAY_W DT_PROP(DT_NODELABEL(sharp_display), width)
@@ -38,9 +34,6 @@ int main(void) {
   k_busy_wait(1000);
   gpio_pin_set_dt(&vbus_en, 1);
   k_busy_wait(1000);
-
-  // Start alternating VCOM/VB and VA signals.
-  // disp_vcom_init();
 
   if (!device_is_ready(display_dev)) {
     LOG_ERR("Device not ready, aborting test");

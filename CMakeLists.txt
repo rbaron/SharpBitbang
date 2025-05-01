@@ -4,4 +4,4 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(sharp_bitbang)
 
-target_sources(app PRIVATE src/main.c src/disp_vcom.c src/display_sharp_ls0xxb7_bitbang.c)
+target_sources(app PRIVATE src/main.c src/display_sharp_ls0xxb7_bitbang.c)

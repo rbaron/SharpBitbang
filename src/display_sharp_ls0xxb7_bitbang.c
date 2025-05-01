@@ -98,7 +98,7 @@ static int sharp_mip_init(const struct device *dev) {
   return 0;
 }
 
-static inline void set_rgb(int y, int x, const void *buf) {
+static inline void set_rgb(bool is_msb, int x0, const void *buf) {
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
   // Our display supports 6-bit colors, but Zephyr + LVGL uses at least 16-bit
   // colors. Here we need to convert them.
@@ -111,31 +111,36 @@ static inline void set_rgb(int y, int x, const void *buf) {
           (CVT_5_TO_2_BITS(b_)));
 
 #elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
-  size_t byte_pos = (280 / 8 * y + (x / 8));
-  size_t bit_pos = x % 8;
-  if (((uint8_t *)buf)[byte_pos] & (1 << bit_pos)) {
-    SET_RGB(0b000000);
-  } else {
-    SET_RGB(0b111111);
-  }
+
+#define GET_BUF_BIT(buf, x) (((uint8_t *)buf)[(x) / 8] >> ((x) % 8) & 0x1)
+
+  uint8_t val = (GET_BUF_BIT(buf, x0 + 1) << 5 |  // r0
+                 GET_BUF_BIT(buf, x0 + 0) << 4 |  // r1
+                 GET_BUF_BIT(buf, x0 + 1) << 3 |  // g0
+                 GET_BUF_BIT(buf, x0 + 0) << 2 |  // g1
+                 GET_BUF_BIT(buf, x0 + 1) << 1 |  // b0
+                 GET_BUF_BIT(buf, x0 + 0) << 0);  // b1
+
+  SET_RGB(val);
 #endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE
 }
 
-static inline void send_line(int y, const struct sharp_mip_config *cfg,
-                             const void *buf) {
-  GSET(bsp);
-  GSET(bck);
-  GCLR(bck);
+static inline void send_half_line(bool is_msb,
+                                  const struct sharp_mip_config *cfg,
+                                  const void *buf) {
   GCLR(bsp);
+  GSET(bsp);
 
-  for (int i = 3; i <= 141; i++) {
-    set_rgb(y, i, buf);
+  for (int i = 1; i <= 144; i++) {
     GTOG(bck);
-  }
 
-  // Remaining 3 clock cycles.
-  for (int i = 0; i < 3; i++) {
-    GTOG(bck);
+    if (i == 2) {
+      GCLR(bsp);
+    }
+    if (i >= 1 && i <= 140) {
+      // Prepare RGB pins for the next BCK edge.
+      set_rgb(/*is_msb=*/is_msb, /*x0=*/2 * (i - 1), buf);
+    }
   }
 }
 
@@ -145,8 +150,8 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
                            const void *buf) {
   const struct sharp_mip_config *cfg = dev->config;
 
-  // The display only supports partial updates at full rows. I.e.: we can start
-  // drawing at (y = 10, x = 0), but _not_ at (y, x = 10).
+  // The display only supports partial updates at full rows. I.e.: we can
+  // start drawing at (y = 10, x = 0), but _not_ at (y, x = 10).
   if (x != 0) {
     LOG_ERR(
         "Full screen or partial updates must be at full rows! x: %d, y = %d, "
@@ -181,10 +186,14 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
     }
 
     if (i == gck_offset) {
-      send_line(0, cfg, buf);
+      send_half_line(/*is_msb=*/true, cfg, buf);
     } else if (i >= gck_offset + 1 && i <= gck_last_half_line) {
       GSET(gen);
+
+      // This display sends MSB for a full line at a GCK edge and then the LSB
+      // for the same line at the next GCK edge.
       const uint16_t display_line = (i - gck_offset) / 2;
+      const bool is_msb = (i - gck_offset) % 2 == 0;
 
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
       // Color buffer, 16 bits per pixel.
@@ -197,7 +206,7 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
       uint8_t *line_buf = (uint8_t *)buf + display_line * 35;
 #endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE
 
-      send_line(0, cfg, line_buf);
+      send_half_line(is_msb, cfg, line_buf);
       GCLR(gen);
     } else if (i == gck_last_half_line + 1) {
       GSET(gen);
@@ -221,17 +230,17 @@ static void sharp_mip_get_capabilities(
   // TODO: This is wasteful. We are requesting 16 bits per pixel here, and we
   // only need 6 bits per pixel. In 2025-03, Zephyr introduced
   // (https://github.com/zephyrproject-rtos/zephyr/pull/86821) the
-  // PIXEL_FORMAT_L_8. It's intended for 8-bit grayscale, but I think we can use
-  // it for 6-bit color here, saving us half the buffer size.
+  // PIXEL_FORMAT_L_8. It's intended for 8-bit grayscale, but I think we can
+  // use it for 6-bit color here, saving us half the buffer size.
   capabilities->supported_pixel_formats = PIXEL_FORMAT_RGB_565;
   capabilities->current_pixel_format = PIXEL_FORMAT_RGB_565;
 #elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
-  capabilities->supported_pixel_formats = PIXEL_FORMAT_MONO01;
-  capabilities->current_pixel_format = PIXEL_FORMAT_MONO01;
+  capabilities->supported_pixel_formats = PIXEL_FORMAT_MONO10;
+  capabilities->current_pixel_format = PIXEL_FORMAT_MONO10;
 #endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE
 
-  // We need partial updates to contain full rows. Note that as of writing, this
-  // flag only takes effect for monochrome pixel formats.
+  // We need partial updates to contain full rows. Note that as of writing,
+  // this flag only takes effect for monochrome pixel formats.
   capabilities->screen_info = SCREEN_INFO_X_ALIGNMENT_WIDTH;
 
   // TODO: get from config.

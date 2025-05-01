@@ -51,13 +51,18 @@ int main(void) {
 
   // Square.
   lv_obj_t *square = lv_obj_create(scr);
+  // Set black color.
+  lv_obj_set_style_bg_color(square, lv_color_black(), LV_PART_MAIN);
+  lv_obj_set_style_bg_opa(square, LV_OPA_COVER, LV_PART_MAIN);
+  lv_obj_set_size(square, 128, 128);
+  lv_obj_align(square, LV_ALIGN_CENTER, 0, 0);
 
   // Text.
   lv_obj_t *label = lv_label_create(scr);
   lv_label_set_long_mode(label, LV_LABEL_LONG_WRAP);
   lv_obj_set_width(label, 110);
   lv_label_set_text(label, "Hello, world");
-  lv_obj_align(label, LV_ALIGN_CENTER, -62, 0);
+  lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
 
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
   // Paint background white.
@@ -97,7 +102,7 @@ int main(void) {
     // Update counter.
     snprintf(buf, sizeof(buf), "x: %d", x);
     lv_label_set_text(label, buf);
-    x += 97;
+    x += 1;
   }
 
   return 0;

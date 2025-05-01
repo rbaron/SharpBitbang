@@ -132,18 +132,28 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
                            const struct sharp_mip_data *data) {
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
 
-  // Offset into buf for 16-bit RGB565 data at column x0.
-  const uint8_t *b = buf + 2 * x0;
-
 // Convert from RGB565 to RGB222 by dropping the least significant bits.
 #define CVT_5_TO_2_BITS(val) (((val) >> 3) & 0x03)
 #define CVT_6_TO_2_BITS(val) (((val) >> 4) & 0x03)
 
+// Extract 2-bit R, G, B values from a lil-endian 16-bit RGB565 pointed by buf.
 #define _R(buf) CVT_5_TO_2_BITS(((buf)[1] >> 3) & 0x1f)
 #define _G(buf) CVT_6_TO_2_BITS((((buf)[1] & 0x7) << 3) | ((buf)[0] >> 5))
 #define _B(buf) CVT_5_TO_2_BITS(((buf)[0]) & 0x1f)
 
 #define MORLSB(v, is_msb) ((v) >> ((is_msb) ? 0 : 1) & 0x1)
+
+// Updates val and mask for a given port, rgb gpio index and a 2-bit value.
+#define UPDATE_VAL_MASK(port, rgb_idx, v2bit)                       \
+  do {                                                              \
+    if (data->rgb_ports[(port)].pin_mask & (1 << (rgb_idx))) {      \
+      val |= (MORLSB((v2bit), is_msb)) << D_GPIO_PIN(rgb, rgb_idx); \
+      mask |= (1 << D_GPIO_PIN(rgb, rgb_idx));                      \
+    }                                                               \
+  } while (0)
+
+  // Offset into buf for 16-bit RGB565 data at column x0.
+  const uint8_t *b = buf + 2 * x0;
 
   for (int i = 0; i < sizeof(data->rgb_ports) / sizeof(data->rgb_ports[0]);
        i++) {
@@ -154,40 +164,12 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
 
     gpio_port_value_t val = 0;
     gpio_port_pins_t mask = 0;
-
-    // TODO: refactor this spaghetti.
-    // Is r0 connected to this port?
-    if (data->rgb_ports[i].pin_mask & (1 << 0)) {
-      val |= (MORLSB(_R(b + 0), is_msb)) << D_GPIO_PIN(rgb, 0);
-      mask |= (1 << D_GPIO_PIN(rgb, 0));
-    }
-    // Is r1 connected to this port?
-    if (data->rgb_ports[i].pin_mask & (1 << 1)) {
-      val |= (MORLSB(_R(b + 2), is_msb)) << D_GPIO_PIN(rgb, 1);
-      mask |= (1 << D_GPIO_PIN(rgb, 1));
-    }
-
-    // Is g0 connected to this port?
-    if (data->rgb_ports[i].pin_mask & (1 << 2)) {
-      val |= (MORLSB(_G(b + 0), is_msb)) << D_GPIO_PIN(rgb, 2);
-      mask |= (1 << D_GPIO_PIN(rgb, 2));
-    }
-    // Is g1 connected to this port?
-    if (data->rgb_ports[i].pin_mask & (1 << 3)) {
-      val |= (MORLSB(_G(b + 2), is_msb)) << D_GPIO_PIN(rgb, 3);
-      mask |= (1 << D_GPIO_PIN(rgb, 3));
-    }
-    // Is b0 connected to this port?
-    if (data->rgb_ports[i].pin_mask & (1 << 4)) {
-      val |= (MORLSB(_B(b + 0), is_msb)) << D_GPIO_PIN(rgb, 4);
-      mask |= (1 << D_GPIO_PIN(rgb, 4));
-    }
-    // Is b1 connected to this port?
-    if (data->rgb_ports[i].pin_mask & (1 << 5)) {
-      val |= (MORLSB(_B(b + 2), is_msb)) << D_GPIO_PIN(rgb, 5);
-      mask |= (1 << D_GPIO_PIN(rgb, 5));
-    }
-
+    UPDATE_VAL_MASK(i, 0, _R(b + 0));  // r0
+    UPDATE_VAL_MASK(i, 1, _R(b + 2));  // r1
+    UPDATE_VAL_MASK(i, 2, _G(b + 0));  // g0
+    UPDATE_VAL_MASK(i, 3, _G(b + 2));  // g1
+    UPDATE_VAL_MASK(i, 4, _B(b + 0));  // b0
+    UPDATE_VAL_MASK(i, 5, _B(b + 2));  // b1
     gpio_port_set_masked(data->rgb_ports[i].port, mask, val);
   }
 

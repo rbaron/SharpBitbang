@@ -15,7 +15,7 @@ LOG_MODULE_REGISTER(sharp_mip_parallel, CONFIG_DISPLAY_LOG_LEVEL);
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
 
-#include "display_sharp_ls0xxb7_bitbang_nrf_macros.h"
+// #include "display_sharp_ls0xxb7_bitbang_nrf_macros.h"
 
 struct rgb_port {
   const struct device *port;
@@ -132,6 +132,7 @@ static int sharp_mip_init(const struct device *dev) {
 }
 
 static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
+                           const struct sharp_mip_config *cfg,
                            const struct sharp_mip_data *data) {
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
 
@@ -147,29 +148,31 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
 #define MORLSB(v, is_msb) ((v) >> ((is_msb) ? 0 : 1) & 0x1)
 
 // Set bit on port register if rgb_idx is on this port.
-#define VAL_BIT_IF_ON_PORT(port, rgb_idx, v2bit)               \
-  ((data->rgb_ports[(port)].rgb_idx_mask & BIT(rgb_idx))       \
-       ? (MORLSB((v2bit), is_msb) << D_GPIO_PIN(rgb, rgb_idx)) \
+#define VAL_BIT_IF_ON_PORT(port, gpio, rgb_idx, v2bit)   \
+  ((data->rgb_ports[(port)].rgb_idx_mask & BIT(rgb_idx)) \
+       ? (MORLSB((v2bit), is_msb) << gpio.pin)           \
        : 0)
 
   // Offset into buf for 16-bit RGB565 data at column x0.
   const uint8_t *b = buf + 2 * x0;
 
-  for (int i = 0; i < sizeof(data->rgb_ports) / sizeof(data->rgb_ports[0]);
-       i++) {
+  for (int port_idx = 0;
+       port_idx < sizeof(data->rgb_ports) / sizeof(data->rgb_ports[0]);
+       port_idx++) {
     // Skip port if it's not connected to any RGB pins.
-    if (data->rgb_ports[i].port == NULL) {
+    if (data->rgb_ports[port_idx].port == NULL) {
       continue;
     }
 
-    const gpio_port_value_t val = VAL_BIT_IF_ON_PORT(i, 0, _R(b + 0)) |
-                                  VAL_BIT_IF_ON_PORT(i, 1, _R(b + 2)) |
-                                  VAL_BIT_IF_ON_PORT(i, 2, _G(b + 0)) |
-                                  VAL_BIT_IF_ON_PORT(i, 3, _G(b + 2)) |
-                                  VAL_BIT_IF_ON_PORT(i, 4, _B(b + 0)) |
-                                  VAL_BIT_IF_ON_PORT(i, 5, _B(b + 2));
-    gpio_port_set_masked(data->rgb_ports[i].port, data->rgb_ports[i].port_mask,
-                         val);
+    const gpio_port_value_t val =
+        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[0], 0, _R(b + 0)) |
+        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[1], 1, _R(b + 2)) |
+        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[2], 2, _G(b + 0)) |
+        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[3], 3, _G(b + 2)) |
+        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[4], 4, _B(b + 0)) |
+        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[5], 5, _B(b + 2));
+    gpio_port_set_masked(data->rgb_ports[port_idx].port,
+                         data->rgb_ports[port_idx].port_mask, val);
   }
 
 #elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
@@ -188,22 +191,32 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
 #endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE
 }
 
-static inline void send_half_line(bool is_msb,
+static inline void set(const struct gpio_dt_spec *gpio) {
+  gpio_pin_set_raw(gpio->port, gpio->pin, 1);
+}
+static inline void clear(const struct gpio_dt_spec *gpio) {
+  gpio_pin_set_raw(gpio->port, gpio->pin, 0);
+}
+static inline void toggle(const struct gpio_dt_spec *gpio) {
+  int val = gpio_pin_get_raw(gpio->port, gpio->pin);
+  gpio_pin_set_raw(gpio->port, gpio->pin, !val);
+}
+
+static inline void send_half_line(bool is_msb, const void *buf,
                                   const struct sharp_mip_config *cfg,
-                                  const void *buf,
                                   const struct sharp_mip_data *data) {
-  GCLR(bsp);
-  GSET(bsp);
+  clear(&cfg->bsp);
+  set(&cfg->bsp);
 
   for (int i = 1; i <= 144; i++) {
-    GTOG(bck);
+    toggle(&cfg->bck);
 
     if (i == 2) {
-      GCLR(bsp);
+      clear(&cfg->bsp);
     }
     if (i >= 1 && i <= 140) {
       // Prepare RGB pins for the next BCK edge.
-      set_rgb(is_msb, /*x0=*/2 * (i - 1), buf, data);
+      set_rgb(is_msb, /*x0=*/2 * (i - 1), buf, cfg, data);
     }
   }
 }
@@ -231,27 +244,28 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
   // The last GCK index of the last sent half-line.
   const int gck_last_half_line = gck_offset + 2 * desc->height - 1;
 
-  // LOG_DBG(
-  //     "Sharp MIP display write. x: %d, y: %d; buf size: %d (buf height: %d,
-  //     " "buf width: %d). Offset: %d, last: %d", x, y, desc->buf_size,
-  //     desc->height, desc->width, gck_offset, gck_last_half_line);
+  LOG_DBG(
+      "Sharp MIP display write. x: %d, y: %d; buf size: %d (buf height: %d,buf "
+      "width: %d). Offset: %d, last: %d",
+      x, y, desc->buf_size, desc->height, desc->width, gck_offset,
+      gck_last_half_line);
 
-  GCLR(gck);
-  GSET(intb);
-  GSET(gsp);
+  clear(&cfg->gck);
+  set(&cfg->intb);
+  set(&cfg->gsp);
 
   // 1-indexed to match the datasheet and improve debugging.
   for (int i = 1; i <= 568; i++) {
-    GTOG(gck);
+    toggle(&cfg->gck);
 
     if (i == 2) {
-      GCLR(gsp);
+      clear(&cfg->gsp);
     }
 
     if (i == gck_offset) {
-      send_half_line(/*is_msb=*/true, cfg, buf, dev->data);
+      send_half_line(/*is_msb=*/true, buf, cfg, dev->data);
     } else if (i >= gck_offset + 1 && i <= gck_last_half_line) {
-      GSET(gen);
+      set(&cfg->gen);
 
       // This display sends MSB for a full line at a GCK edge and then the LSB
       // for the same line at the next GCK edge.
@@ -260,7 +274,6 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
 
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
       // Color buffer, 16 bits per pixel.
-      // OLD: Each line has 280 pixels, which is 280 * 2 = 560 bytes.
       // Each line has buf_width pixels, which is buf_width * 2.
       uint8_t *line_buf = (uint8_t *)buf + display_line * desc->width * 2;
 #elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
@@ -269,13 +282,13 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
       uint8_t *line_buf = (uint8_t *)buf + display_line * 35;
 #endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE
 
-      send_half_line(is_msb, cfg, line_buf, dev->data);
-      GCLR(gen);
+      send_half_line(is_msb, line_buf, cfg, dev->data);
+      clear(&cfg->gen);
     } else if (i == gck_last_half_line + 1) {
-      GSET(gen);
-      GCLR(gen);
+      set(&cfg->gen);
+      clear(&cfg->gen);
     } else if (i == 566) {
-      GCLR(intb);
+      clear(&cfg->intb);
     }
   }
 

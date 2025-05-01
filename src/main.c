@@ -51,8 +51,6 @@ int main(void) {
 
   // Square.
   lv_obj_t *square = lv_obj_create(scr);
-  // Set black color.
-  lv_obj_set_style_bg_color(square, lv_color_black(), LV_PART_MAIN);
   lv_obj_set_style_bg_opa(square, LV_OPA_COVER, LV_PART_MAIN);
   lv_obj_set_size(square, 128, 128);
   lv_obj_align(square, LV_ALIGN_CENTER, 0, 0);
@@ -64,7 +62,9 @@ int main(void) {
   lv_label_set_text(label, "Hello, world");
   lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
 
-#if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
+#if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
+  lv_obj_set_style_bg_color(square, lv_color_black(), LV_PART_MAIN);
+#elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
   // Paint background white.
   static lv_style_t style_bg_white;
   lv_style_init(&style_bg_white);
@@ -77,7 +77,7 @@ int main(void) {
   lv_style_init(&style);
   lv_style_set_bg_color(&style, lv_color_hex(0x00ff00));
   lv_style_set_border_color(&style, lv_color_hex(0x0000ff));
-  lv_style_set_border_width(&style, 3);
+  lv_style_set_border_width(&style, 4);
   lv_obj_add_style(square, &style, LV_PART_MAIN);
   lv_obj_update_layout(square);
 

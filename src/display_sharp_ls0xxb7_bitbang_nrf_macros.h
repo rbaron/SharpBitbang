@@ -91,10 +91,4 @@
     SET_RGB_P1((val)); \
   } while (0)
 
-// Convert 5-bit and 6-bit color values to 2 bit values by ignoring the least
-// significant bits.
-// TODO: I'm not sure this is a good mapping, just intuition.
-#define CVT_5_TO_2_BITS(val) (((val) >> 3) & 0x03)
-#define CVT_6_TO_2_BITS(val) (((val) >> 4) & 0x03)
-
 #endif  // _DISPLAY_SHARP_LS0XXB7_BITBANG_NRF_MACROS_H_

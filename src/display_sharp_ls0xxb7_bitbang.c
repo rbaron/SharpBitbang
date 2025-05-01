@@ -98,30 +98,32 @@ static int sharp_mip_init(const struct device *dev) {
   return 0;
 }
 
-static inline void set_rgb(bool is_msb, int x0, const void *buf) {
+static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf) {
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
 
-  size_t offset = 2 * x0;
-  uint8_t *off_buf = (uint8_t *)buf + offset;
-  uint8_t r1 = off_buf[1] >> 3;
-  uint8_t g1 = (off_buf[1] & 0x7) << 3 | (off_buf[0] >> 5);
-  uint8_t b1 = off_buf[0] & 0x1f;
+  // Offset into buf for 16-bit RGB565 data at column x0.
+  uint8_t *b = buf + 2 * x0;
 
-  uint8_t r0 = off_buf[3] >> 3;
-  uint8_t g0 = (off_buf[3] & 0x7) << 3 | (off_buf[2] >> 5);
-  uint8_t b0 = off_buf[2] & 0x1f;
+// Convert from RGB565 to RGB222 by dropping the least significant bits.
+#define CVT_5_TO_2_BITS(val) (((val) >> 3) & 0x03)
+#define CVT_6_TO_2_BITS(val) (((val) >> 4) & 0x03)
 
-#define MORLSB(v, is_msb) ((v) >> (is_msb ? 0 : 1) & 0x1)
+#define _R(buf) CVT_5_TO_2_BITS(((buf)[1] >> 3) & 0x1f)
+#define _G(buf) CVT_6_TO_2_BITS((((buf)[1] & 0x7) << 3) | ((buf)[0] >> 5))
+#define _B(buf) CVT_5_TO_2_BITS(((buf)[0]) & 0x1f)
 
-  SET_RGB((MORLSB(CVT_5_TO_2_BITS(r0), is_msb) << 5) |  // r0
-          (MORLSB(CVT_5_TO_2_BITS(r1), is_msb) << 4) |  // r1
-          (MORLSB(CVT_6_TO_2_BITS(g0), is_msb) << 3) |  // g0
-          (MORLSB(CVT_6_TO_2_BITS(g1), is_msb) << 2) |  // g1
-          (MORLSB(CVT_5_TO_2_BITS(b0), is_msb) << 1) |  // b0
-          (MORLSB(CVT_5_TO_2_BITS(b1), is_msb) << 0));  // b1
+#define MORLSB(v, is_msb) ((v) >> ((is_msb) ? 0 : 1) & 0x1)
+
+  SET_RGB((MORLSB(_R(b + 2), is_msb) << 5) |  // r0
+          (MORLSB(_R(b + 0), is_msb) << 4) |  // r1
+          (MORLSB(_G(b + 2), is_msb) << 3) |  // g0
+          (MORLSB(_G(b + 0), is_msb) << 2) |  // g1
+          (MORLSB(_B(b + 2), is_msb) << 1) |  // b0
+          (MORLSB(_B(b + 0), is_msb) << 0));  // b1
 
 #elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
 
+// #define GET_BUF_BIT(buf, x) ((buf)[(x) / 8] >> ((x) % 8) & 0x1)
 #define GET_BUF_BIT(buf, x) (((uint8_t *)buf)[(x) / 8] >> ((x) % 8) & 0x1)
 
   uint8_t val = (GET_BUF_BIT(buf, x0 + 1) << 5 |  // r0
@@ -149,7 +151,7 @@ static inline void send_half_line(bool is_msb,
     }
     if (i >= 1 && i <= 140) {
       // Prepare RGB pins for the next BCK edge.
-      set_rgb(/*is_msb=*/is_msb, /*x0=*/2 * (i - 1), buf);
+      set_rgb(is_msb, /*x0=*/2 * (i - 1), buf);
     }
   }
 }

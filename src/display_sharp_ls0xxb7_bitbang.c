@@ -145,12 +145,13 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
 #define _G(buf) CVT_6_TO_2_BITS((((buf)[1] & 0x7) << 3) | ((buf)[0] >> 5))
 #define _B(buf) CVT_5_TO_2_BITS(((buf)[0]) & 0x1f)
 
-#define MORLSB(v, is_msb) ((v) >> ((is_msb) ? 0 : 1) & 0x1)
+// Get either MSB or LSB from from a 2-bit value.
+#define GET_SIG_BIT(v, is_msb) ((v) >> ((is_msb) ? 0 : 1) & 0x1)
 
 // Set bit on port register if rgb_idx is on this port.
 #define VAL_BIT_IF_ON_PORT(port, gpio, rgb_idx, v2bit)   \
   ((data->rgb_ports[(port)].rgb_idx_mask & BIT(rgb_idx)) \
-       ? (MORLSB((v2bit), is_msb) << gpio.pin)           \
+       ? (GET_SIG_BIT((v2bit), is_msb) << gpio.pin)      \
        : 0)
 
   // Offset into buf for 16-bit RGB565 data at column x0.
@@ -177,17 +178,34 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
 
 #elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
 
-// #define GET_BUF_BIT(buf, x) ((buf)[(x) / 8] >> ((x) % 8) & 0x1)
 #define GET_BUF_BIT(buf, x) (((uint8_t *)buf)[(x) / 8] >> ((x) % 8) & 0x1)
 
-  uint8_t val = (GET_BUF_BIT(buf, x0 + 1) << 5 |  // r0
-                 GET_BUF_BIT(buf, x0 + 0) << 4 |  // r1
-                 GET_BUF_BIT(buf, x0 + 1) << 3 |  // g0
-                 GET_BUF_BIT(buf, x0 + 0) << 2 |  // g1
-                 GET_BUF_BIT(buf, x0 + 1) << 1 |  // b0
-                 GET_BUF_BIT(buf, x0 + 0) << 0);  // b1
+#define VAL_BIT_IF_ON_PORT(port, gpio, rgb_idx, buf, x)  \
+  ((data->rgb_ports[(port)].rgb_idx_mask & BIT(rgb_idx)) \
+       ? (GET_BUF_BIT((buf), (x)) << gpio.pin)           \
+       : 0)
 
-  SET_RGB(val);
+  for (int port_idx = 0;
+       port_idx < sizeof(data->rgb_ports) / sizeof(data->rgb_ports[0]);
+       port_idx++) {
+    // Skip port if it's not connected to any RGB pins.
+    if (data->rgb_ports[port_idx].port == NULL) {
+      continue;
+    }
+
+    const gpio_port_value_t val =
+        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[0], 0, buf, x0 + 0) |
+        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[1], 1, buf, x0 + 1) |
+        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[2], 2, buf, x0 + 0) |
+        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[3], 3, buf, x0 + 1) |
+        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[4], 4, buf, x0 + 0) |
+        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[5], 5, buf, x0 + 1);
+
+    gpio_port_set_masked(data->rgb_ports[port_idx].port,
+                         data->rgb_ports[port_idx].port_mask, val);
+  }
+
+  // SET_RGB(val);
 #endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE
 }
 

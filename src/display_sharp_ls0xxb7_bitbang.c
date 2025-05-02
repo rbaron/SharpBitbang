@@ -133,6 +133,7 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
 #define CVT_5_TO_2_BITS(val) (((val) >> 3) & 0x03)
 #define CVT_6_TO_2_BITS(val) (((val) >> 4) & 0x03)
 
+// TODO: Make this endianess-agnostic.
 // Extract 2-bit R, G, B values from a lil-endian 16-bit RGB565 pointed by buf.
 #define _R(buf) CVT_5_TO_2_BITS(((buf)[1] >> 3) & 0x1f)
 #define _G(buf) CVT_6_TO_2_BITS((((buf)[1] & 0x7) << 3) | ((buf)[0] >> 5))

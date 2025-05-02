@@ -143,9 +143,9 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
 #define GET_SIG_BIT(v, is_msb) ((v) >> ((is_msb) ? 0 : 1) & 0x1)
 
 // Set bit on port register if rgb_idx is on this port.
-#define VAL_BIT_IF_ON_PORT(port, gpio, rgb_idx, v2bit)   \
-  ((data->rgb_ports[(port)].rgb_idx_mask & BIT(rgb_idx)) \
-       ? (GET_SIG_BIT((v2bit), is_msb) << gpio.pin)      \
+#define VAL_BIT_IF_ON_PORT(port, rgb_idx, v2bit)                   \
+  ((data->rgb_ports[(port)].rgb_idx_mask & BIT(rgb_idx))           \
+       ? (GET_SIG_BIT((v2bit), is_msb) << cfg->rgb[(rgb_idx)].pin) \
        : 0)
 
   // Offset into buf for 16-bit RGB565 data at column x0.
@@ -159,13 +159,13 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
       continue;
     }
 
-    const gpio_port_value_t val =
-        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[0], 0, _R(b + 0)) |
-        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[1], 1, _R(b + 2)) |
-        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[2], 2, _G(b + 0)) |
-        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[3], 3, _G(b + 2)) |
-        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[4], 4, _B(b + 0)) |
-        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[5], 5, _B(b + 2));
+    const gpio_port_value_t val = VAL_BIT_IF_ON_PORT(port_idx, 0, _R(b + 0)) |
+                                  VAL_BIT_IF_ON_PORT(port_idx, 1, _R(b + 2)) |
+                                  VAL_BIT_IF_ON_PORT(port_idx, 2, _G(b + 0)) |
+                                  VAL_BIT_IF_ON_PORT(port_idx, 3, _G(b + 2)) |
+                                  VAL_BIT_IF_ON_PORT(port_idx, 4, _B(b + 0)) |
+                                  VAL_BIT_IF_ON_PORT(port_idx, 5, _B(b + 2));
+
     gpio_port_set_masked(data->rgb_ports[port_idx].port,
                          data->rgb_ports[port_idx].port_mask, val);
   }
@@ -174,9 +174,9 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
 
 #define GET_BUF_BIT(buf, x) (((uint8_t *)buf)[(x) / 8] >> ((x) % 8) & 0x1)
 
-#define VAL_BIT_IF_ON_PORT(port, gpio, rgb_idx, buf, x)  \
-  ((data->rgb_ports[(port)].rgb_idx_mask & BIT(rgb_idx)) \
-       ? (GET_BUF_BIT((buf), (x)) << gpio.pin)           \
+#define VAL_BIT_IF_ON_PORT(port, rgb_idx, buf, x)             \
+  ((data->rgb_ports[(port)].rgb_idx_mask & BIT(rgb_idx))      \
+       ? (GET_BUF_BIT((buf), (x)) << cfg->rgb[(rgb_idx)].pin) \
        : 0)
 
   for (int port_idx = 0;
@@ -187,13 +187,12 @@ static inline void set_rgb(bool is_msb, int x0, const uint8_t *buf,
       continue;
     }
 
-    const gpio_port_value_t val =
-        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[0], 0, buf, x0 + 0) |
-        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[1], 1, buf, x0 + 1) |
-        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[2], 2, buf, x0 + 0) |
-        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[3], 3, buf, x0 + 1) |
-        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[4], 4, buf, x0 + 0) |
-        VAL_BIT_IF_ON_PORT(port_idx, cfg->rgb[5], 5, buf, x0 + 1);
+    const gpio_port_value_t val = VAL_BIT_IF_ON_PORT(port_idx, 0, buf, x0 + 0) |
+                                  VAL_BIT_IF_ON_PORT(port_idx, 1, buf, x0 + 1) |
+                                  VAL_BIT_IF_ON_PORT(port_idx, 2, buf, x0 + 0) |
+                                  VAL_BIT_IF_ON_PORT(port_idx, 3, buf, x0 + 1) |
+                                  VAL_BIT_IF_ON_PORT(port_idx, 4, buf, x0 + 0) |
+                                  VAL_BIT_IF_ON_PORT(port_idx, 5, buf, x0 + 1);
 
     gpio_port_set_masked(data->rgb_ports[port_idx].port,
                          data->rgb_ports[port_idx].port_mask, val);

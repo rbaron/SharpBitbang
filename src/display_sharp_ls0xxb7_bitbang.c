@@ -24,7 +24,7 @@ struct sharp_mip_data {
   struct k_thread vcom_thread;
 
   // Optimization for RGB pins.
-  struct rgb_port rgb_ports[2];
+  struct rgb_port rgb_ports[3];
 };
 
 // Private const data for the driver.
@@ -120,6 +120,7 @@ static int sharp_mip_init(const struct device *dev) {
     LOG_DBG("RGB port %d: %p, mask: 0x%02x", i, data->rgb_ports[i].port,
             data->rgb_ports[i].rgb_idx_mask);
   }
+  LOG_DBG("VCOM thread started");
 
   return 0;
 }
@@ -254,11 +255,10 @@ static int sharp_mip_write(const struct device *dev, const uint16_t x,
   // The last GCK index of the last sent half-line.
   const int gck_last_half_line = gck_offset + 2 * desc->height - 1;
 
-  LOG_DBG(
-      "Sharp MIP display write. x: %d, y: %d; buf size: %d (buf height: %d,buf "
-      "width: %d). Offset: %d, last: %d",
-      x, y, desc->buf_size, desc->height, desc->width, gck_offset,
-      gck_last_half_line);
+  // LOG_DBG(
+  //     "Sharp MIP display write. x: %d, y: %d; buf size: %d (buf height:
+  //     %d,buf " "width: %d). Offset: %d, last: %d", x, y, desc->buf_size,
+  //     desc->height, desc->width, gck_offset, gck_last_half_line);
 
   clear(&cfg->gck);
   set(&cfg->intb);

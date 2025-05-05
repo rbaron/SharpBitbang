@@ -8,6 +8,15 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
+// nPM1300.
+#include <zephyr/drivers/mfd/npm1300.h>
+#include <zephyr/drivers/regulator.h>
+#include <zephyr/dt-bindings/regulator/npm1300.h>
+
+// static const struct device *regulators =
+//     DEVICE_DT_GET(DT_NODELABEL(npm1300_regulators));
+// static const struct device *ldo2 = DEVICE_DT_GET(DT_NODELABEL(npm1300_ldo2));
+
 LOG_MODULE_REGISTER(main, CONFIG_DISPLAY_LOG_LEVEL);
 
 #define DISPLAY_H DT_PROP(DT_NODELABEL(sharp_display), height)
@@ -16,23 +25,43 @@ LOG_MODULE_REGISTER(main, CONFIG_DISPLAY_LOG_LEVEL);
 static const struct device *display_dev =
     DEVICE_DT_GET(DT_NODELABEL(sharp_display));
 
-static const struct gpio_dt_spec vddio_en =
-    GPIO_DT_SPEC_GET(DT_NODELABEL(vddio_en), gpios);
-static const struct gpio_dt_spec vbus_en =
-    GPIO_DT_SPEC_GET(DT_NODELABEL(vbus_en), gpios);
+// static const struct gpio_dt_spec vddio_en =
+//     GPIO_DT_SPEC_GET(DT_NODELABEL(vddio_en), gpios);
+// static const struct gpio_dt_spec vbus_en =
+//     GPIO_DT_SPEC_GET(DT_NODELABEL(vbus_en), gpios);
+static const struct gpio_dt_spec dispv5en =
+    GPIO_DT_SPEC_GET(DT_NODELABEL(dispv5en), gpios);
 
 static const struct gpio_dt_spec led0 =
-    GPIO_DT_SPEC_GET(DT_NODELABEL(led0), gpios);
+    GPIO_DT_SPEC_GET(DT_NODELABEL(led1), gpios);
 
 int main(void) {
-  gpio_pin_configure_dt(&vddio_en, GPIO_OUTPUT_HIGH);
-  gpio_pin_configure_dt(&vbus_en, GPIO_OUTPUT_HIGH);
+  NRF_NFCT->PADCONFIG = 0;
+
+  // gpio_pin_configure_dt(&vddio_en, GPIO_OUTPUT_HIGH);
+  // gpio_pin_configure_dt(&vbus_en, GPIO_OUTPUT_HIGH);
+  LOG_INF("Okay0!");
   gpio_pin_configure_dt(&led0, GPIO_OUTPUT);
+  gpio_pin_configure_dt(&dispv5en, GPIO_OUTPUT_HIGH);
+
+  LOG_INF("Okay1!");
+
+  // if (!device_is_ready(regulators)) {
+  //   LOG_ERR("Error: Regulator device is not ready\n");
+  //   return 0;
+  // }
+
+  // if (!device_is_ready(ldo2)) {
+  //   LOG_ERR("Error: LDO2 device is not ready\n");
+  //   return 0;
+  // }
 
   // Power up.
-  gpio_pin_set_dt(&vddio_en, 1);
-  k_busy_wait(1000);
-  gpio_pin_set_dt(&vbus_en, 1);
+  // gpio_pin_set_dt(&vddio_en, 1);
+  // k_busy_wait(1000);
+  // gpio_pin_set_dt(&vbus_en, 1);
+  // k_busy_wait(1000);
+  gpio_pin_set_dt(&dispv5en, 1);
   k_busy_wait(1000);
 
   if (!device_is_ready(display_dev)) {
@@ -45,7 +74,7 @@ int main(void) {
   // Square.
   lv_obj_t *square = lv_obj_create(scr);
   lv_obj_set_style_bg_opa(square, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_size(square, 128, 128);
+  lv_obj_set_size(square, 256, 256);
   lv_obj_align(square, LV_ALIGN_CENTER, 0, 0);
 
   // Text.
@@ -82,6 +111,8 @@ int main(void) {
   lv_obj_add_style(label, &style_red, LV_PART_MAIN);
 #endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
 
+  LOG_INF("Okay2!");
+
   int x = 100;
   char buf[32];
   while (1) {
@@ -92,6 +123,20 @@ int main(void) {
     snprintf(buf, sizeof(buf), "x: %d", x);
     lv_label_set_text(label, buf);
     x += 1;
+
+    // Toggle LED.
+    gpio_pin_toggle_dt(&led0);
+
+    // Enable regulator.
+    // int ret = 0;
+    // if (x % 2 == 0) {
+    //   ret = regulator_disable(ldo2);
+    // } else {
+    //   ret = regulator_enable(ldo2);
+    // }
+    // if (ret < 0) {
+    //   LOG_ERR("Error togglign regulator: %d", ret);
+    // }
   }
 
   return 0;

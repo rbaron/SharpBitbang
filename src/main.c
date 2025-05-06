@@ -41,6 +41,20 @@ static const struct gpio_dt_spec dispv5en =
 static const struct gpio_dt_spec led0 =
     GPIO_DT_SPEC_GET(DT_NODELABEL(led1), gpios);
 
+// Buttons.
+static const struct gpio_dt_spec button0 =
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button0), gpios);
+static const struct gpio_dt_spec button1 =
+    GPIO_DT_SPEC_GET(DT_NODELABEL(button1), gpios);
+
+static struct gpio_callback button_cb_data;
+
+// Callbacks.
+static void button_pressed(const struct device *dev, struct gpio_callback *cb,
+                           uint32_t pins) {
+  LOG_INF("Button pressed: pins %d", pins);
+}
+
 int main(void) {
   NRF_NFCT->PADCONFIG = 0;
 
@@ -51,6 +65,45 @@ int main(void) {
   gpio_pin_configure_dt(&dispv5en, GPIO_OUTPUT_HIGH);
 
   LOG_INF("Okay1!");
+
+  // Configure buttons.
+  int ret = 0;
+  ret = gpio_pin_configure_dt(&button0, GPIO_INPUT);
+  if (ret != 0) {
+    LOG_ERR("Error %d: failed to configure %s pin %d\n", ret,
+            button0.port->name, button0.pin);
+    return 0;
+  }
+
+  ret = gpio_pin_interrupt_configure_dt(&button0, GPIO_INT_EDGE_TO_ACTIVE);
+  if (ret != 0) {
+    LOG_ERR("Error %d: failed to configure %s pin %d\n", ret,
+            button0.port->name, button0.pin);
+    return 0;
+  }
+
+  ret = gpio_pin_configure_dt(&button1, GPIO_INPUT);
+  if (ret != 0) {
+    LOG_ERR("Error %d: failed to configure %s pin %d\n", ret,
+            button1.port->name, button1.pin);
+    return 0;
+  }
+  ret = gpio_pin_interrupt_configure_dt(&button1, GPIO_INT_EDGE_TO_ACTIVE);
+  if (ret != 0) {
+    LOG_ERR("Error %d: failed to configure %s pin %d\n", ret,
+            button1.port->name, button1.pin);
+    return 0;
+  }
+
+  gpio_init_callback(&button_cb_data, button_pressed,
+                     BIT(button0.pin) | BIT(button1.pin));
+
+  ret = gpio_add_callback(button0.port, &button_cb_data);
+  if (ret != 0) {
+    LOG_ERR("Error %d: failed to add callback for %s pin %d\n", ret,
+            button0.port->name, button0.pin);
+    return 0;
+  }
 
   // if (!device_is_ready(regulators)) {
   //   LOG_ERR("Error: Regulator device is not ready\n");

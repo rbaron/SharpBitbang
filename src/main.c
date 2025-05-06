@@ -4,6 +4,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/display.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/led.h>
 #include <zephyr/dt-bindings/gpio/nordic-nrf-gpio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
@@ -13,9 +14,14 @@
 #include <zephyr/drivers/regulator.h>
 #include <zephyr/dt-bindings/regulator/npm1300.h>
 
+// sht40.
+#include <zephyr/drivers/sensor/sht4x.h>
+
 // static const struct device *regulators =
 //     DEVICE_DT_GET(DT_NODELABEL(npm1300_regulators));
 // static const struct device *ldo2 = DEVICE_DT_GET(DT_NODELABEL(npm1300_ldo2));
+
+static const struct device *leds = DEVICE_DT_GET(DT_NODELABEL(npm1300_leds));
 
 LOG_MODULE_REGISTER(main, CONFIG_DISPLAY_LOG_LEVEL);
 
@@ -69,12 +75,15 @@ int main(void) {
     return 0;
   }
 
+  // Rotation.
+  // lv_disp_set_rotation(lv_disp_get_default(), LV_DISP_ROT_180);
+
   lv_obj_t *scr = lv_scr_act();
 
   // Square.
   lv_obj_t *square = lv_obj_create(scr);
   lv_obj_set_style_bg_opa(square, LV_OPA_COVER, LV_PART_MAIN);
-  lv_obj_set_size(square, 256, 256);
+  lv_obj_set_size(square, 180, 128);
   lv_obj_align(square, LV_ALIGN_CENTER, 0, 0);
 
   // Text.
@@ -112,6 +121,15 @@ int main(void) {
 #endif  // CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
 
   LOG_INF("Okay2!");
+  // lv_disp_set_rotation(NULL, LV_DISP_ROT_180);
+
+  // SHT40.
+  const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
+  struct sensor_value temp, hum;
+  if (!device_is_ready(sht)) {
+    LOG_ERR("Device %s is not ready.\n", sht->name);
+    return 0;
+  }
 
   int x = 100;
   char buf[32];
@@ -126,6 +144,21 @@ int main(void) {
 
     // Toggle LED.
     gpio_pin_toggle_dt(&led0);
+
+    if (sensor_sample_fetch(sht)) {
+      printf("Failed to fetch sample from SHT4X device\n");
+      return 0;
+    }
+
+    sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+    sensor_channel_get(sht, SENSOR_CHAN_HUMIDITY, &hum);
+
+    LOG_INF("Temperature: %d.%06d C", temp.val1, temp.val2);
+    // LOG_INF("Humidity: %d.%06d %%", hum.val1, hum.val2);
+
+    led_on(leds, 0);
+    k_msleep(1000);
+    led_off(leds, 0);
 
     // Enable regulator.
     // int ret = 0;

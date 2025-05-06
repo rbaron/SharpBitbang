@@ -330,7 +330,8 @@ static void sharp_mip_get_capabilities(
   capabilities->screen_info = SCREEN_INFO_X_ALIGNMENT_WIDTH;
 
   // TODO: get from config.
-  capabilities->current_orientation = DISPLAY_ORIENTATION_NORMAL;
+  // capabilities->current_orientation = DISPLAY_ORIENTATION_NORMAL;
+  // capabilities->current_orientation = DISPLAY_ORIENTATION_ROTATED_90;
 }
 
 struct display_driver_api sharp_mip_driver_api = {

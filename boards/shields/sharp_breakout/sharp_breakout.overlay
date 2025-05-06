@@ -13,10 +13,10 @@
 // bit-bang i2c.
 
 
-// &i2c22 {
+// &i2c30 {
 // 	status = "okay";
-// 	pinctrl-0 = <&i2c22_default>;
-// 	pinctrl-1 = <&i2c22_sleep>;
+// 	pinctrl-0 = <&i2c30_default>;
+// 	pinctrl-1 = <&i2c30_sleep>;
 // 	pinctrl-names = "default", "sleep";
 
 // 	sht4x@44 {
@@ -55,8 +55,8 @@
 // 			};
 
 // 			LDO2 {
-// 				// regulator-min-microvolt = <1000000>;
-// 				regulator-min-microvolt = <3300000>;
+// 				regulator-min-microvolt = <1000000>;
+// 				// regulator-min-microvolt = <3300000>;
 // 				regulator-max-microvolt = <3300000>;
 // 				regulator-boot-on;
 // 				regulator-always-on;
@@ -103,7 +103,7 @@
 		};
 	};
 
-	// /omit-if-no-ref/ i2c22_default: i2c22_default {
+	// /omit-if-no-ref/ i2c30_default: i2c30_default {
 	// 	group1  {
 	// 		psels = <NRF_PSEL(TWIM_SCL, 0, 1)>,
 	// 				<NRF_PSEL(TWIM_SDA, 0, 0)>;
@@ -113,7 +113,7 @@
 	// 	};
 	// };
 
-	// /omit-if-no-ref/ i2c22_sleep: i2c22_sleep {
+	// /omit-if-no-ref/ i2c30_sleep: i2c30_sleep {
 	// 	group1  {
 	// 		psels = <NRF_PSEL(TWIM_SCL, 0, 1)>,
 	// 				<NRF_PSEL(TWIM_SDA, 0, 0)>;

@@ -157,7 +157,7 @@ int main(void) {
     // LOG_INF("Humidity: %d.%06d %%", hum.val1, hum.val2);
 
     led_on(leds, 0);
-    k_msleep(1000);
+    k_msleep(500);
     led_off(leds, 0);
 
     // Enable regulator.

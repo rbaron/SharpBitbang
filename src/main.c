@@ -236,12 +236,12 @@ int main(void) {
   // lv_disp_set_rotation(NULL, LV_DISP_ROT_180);
 
   // SHT40.
-  const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
-  struct sensor_value temp, hum;
-  if (!device_is_ready(sht)) {
-    LOG_ERR("Device %s is not ready.\n", sht->name);
-    return 0;
-  }
+  // const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
+  // struct sensor_value temp, hum;
+  // if (!device_is_ready(sht)) {
+  //   LOG_ERR("Device %s is not ready.\n", sht->name);
+  //   return 0;
+  // }
 
   int x = 100;
   char buf[32];
@@ -257,15 +257,15 @@ int main(void) {
     // Toggle LED.
     gpio_pin_toggle_dt(&led0);
 
-    if (sensor_sample_fetch(sht)) {
-      printf("Failed to fetch sample from SHT4X device\n");
-      return 0;
-    }
+    // if (sensor_sample_fetch(sht)) {
+    //   printf("Failed to fetch sample from SHT4X device\n");
+    //   return 0;
+    // }
 
-    sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
-    sensor_channel_get(sht, SENSOR_CHAN_HUMIDITY, &hum);
+    // sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+    // sensor_channel_get(sht, SENSOR_CHAN_HUMIDITY, &hum);
 
-    LOG_INF("Temperature: %d.%06d C", temp.val1, temp.val2);
+    // LOG_INF("Temperature: %d.%06d C", temp.val1, temp.val2);
     // LOG_INF("Humidity: %d.%06d %%", hum.val1, hum.val2);
 
     led_on(leds, 0);

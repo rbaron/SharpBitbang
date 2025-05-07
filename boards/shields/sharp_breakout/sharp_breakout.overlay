@@ -8,62 +8,16 @@
 
 /delete-node/ &pwm_led1;
 
-// /delete-node/ &uart20;
+
+/delete-node/ &uart20;
 
 // bit-bang i2c.
-
 
 // &i2c30 {
 // 	status = "okay";
 // 	pinctrl-0 = <&i2c30_default>;
 // 	pinctrl-1 = <&i2c30_sleep>;
 // 	pinctrl-names = "default", "sleep";
-
-// 	sht4x@44 {
-// 		compatible = "sensirion,sht4x";
-// 		reg = <0x44>;
-// 		label = "SHT40";
-// 		status = "okay";
-// 		repeatability= <2>;
-// 	};
-
-// 	// lsm6dsl: lsm6dsl@6a {
-// 	// 	compatible = "i2c-device";
-// 	// 	reg = <0x6a>;
-// 	// 	status = "okay";
-// 	// 	label = "LSM6DSL";
-// 	// };
-
-// 	npm1300: npm1300@6b {
-// 		compatible = "nordic,npm1300";
-// 		status = "okay";
-// 		reg = <0x6b>;
-
-// 		npm1300_regulators: regulators {
-// 			compatible = "nordic,npm1300-regulator";
-
-// 			BUCK1 {
-// 				status = "disabled";
-// 			};
-
-// 			BUCK2 {
-// 				status = "disabled";
-// 			};
-
-// 			LDO1 {
-// 				status = "disabled";
-// 			};
-
-// 			LDO2 {
-// 				regulator-min-microvolt = <1000000>;
-// 				// regulator-min-microvolt = <3300000>;
-// 				regulator-max-microvolt = <3300000>;
-// 				regulator-boot-on;
-// 				regulator-always-on;
-// 				status = "okay";
-// 			};
-// 		};
-// 	};
 // };
 
 &pinctrl {
@@ -73,36 +27,8 @@
 	/delete-node/ uart30_sleep;
 	/delete-node/ pwm20_default;
 	/delete-node/ pwm20_sleep;
-	/delete-node/ uart20_default;
-	/delete-node/ uart20_sleep;
 
-	/omit-if-no-ref/ uart20_default: uart20_default {
-		group1 {
-			// psels = <NRF_PSEL(UART_TX, 2, 10)>;
-			// psels = <NRF_PSEL(UART_TX, 2, 6)>;
-			psels = <NRF_PSEL(UART_TX, 2, 4)>;
-		};
-		group2 {
-			// psels = <NRF_PSEL(UART_RX, 2, 7)>;
-			psels = <NRF_PSEL(UART_RX, 2, 5)>;
-			bias-pull-up;
-		};
-	};
-
-	/omit-if-no-ref/ uart20_sleep: uart20_sleep {
-		group1 {
-			// psels = <NRF_PSEL(UART_TX, 2, 10)>,
-			// 				<NRF_PSEL(UART_RX, 2, 9)>;
-			// psels = <NRF_PSEL(UART_TX, 2, 6)>,
-			// 				<NRF_PSEL(UART_RX, 2, 7)>;
-
-			// TODO: these are accel ints.
-			psels = <NRF_PSEL(UART_TX, 2, 4)>,
-							<NRF_PSEL(UART_RX, 2, 5)>;
-			low-power-enable;
-		};
-	};
-
+	// If I comment these out, the display does not work?
 	// /omit-if-no-ref/ i2c30_default: i2c30_default {
 	// 	group1  {
 	// 		psels = <NRF_PSEL(TWIM_SCL, 0, 1)>,
@@ -124,14 +50,6 @@
 	// 	};
 	// };
 
-
-};
-
-&uart20 {
-	current-speed = <115200>;
-	pinctrl-0 = <&uart20_default>;
-	pinctrl-1 = <&uart20_sleep>;
-	pinctrl-names = "default", "sleep";
 };
 
 &nfct {
@@ -142,12 +60,16 @@
 // 	nfct-pins-as-gpios;
 // };
 
-
-
 / {
 
 	chosen {
 		zephyr,display = &sharp_display;
+
+		/delete-property/ zephyr,console;
+		/delete-property/ zephyr,shell-uart;
+		/delete-property/ zephyr,uart-mcumgr;
+		/delete-property/ zephyr,bt-mon-uart;
+		/delete-property/ zephyr,bt-c2h-uart;
 	};
 
 	sharp_display: sharp_ls0xxb7 {
@@ -177,18 +99,8 @@
 
 	leds {
 		compatible = "gpio-leds";
-		// vddio_en: vddio_en {
-		// 	gpios = <&gpio1 5 GPIO_ACTIVE_HIGH>;
-		// 	label = "VDDIO_EN";
-		// };
-
-		// vbus_en: vbus_en {
-		// 	gpios = <&gpio1 4 GPIO_ACTIVE_HIGH>;
-		// 	label = "VBUS_EN";
-		// };
-
 		led1: led_1 {
-			gpios = <&gpio2 10 GPIO_ACTIVE_HIGH>;
+			gpios = <&gpio2 10 0>;
 			label = "LED 1";
 		};
 
@@ -233,21 +145,20 @@
 		compatible = "gpio-i2c";
 		status = "okay";
 		clock-frequency = <I2C_BITRATE_STANDARD>;
-		// clock-frequency = < 10000 >;
-		// sda-gpios = <&gpio2 7 (GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
-		// scl-gpios = <&gpio2 6 (GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
-		sda-gpios = <&gpio2 7 GPIO_PULL_UP>;
-		scl-gpios = <&gpio2 6 GPIO_PULL_UP>;
+		sda-gpios = <&gpio2 7 (GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
+		scl-gpios = <&gpio2 6 (GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
+		// sda-gpios = <&gpio0 0 GPIO_PULL_UP>;
+		// scl-gpios = <&gpio0 1 GPIO_PULL_UP>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		sht4x@44 {
-			compatible = "sensirion,sht4x";
-			reg = <0x44>;
-			label = "SHT40";
-			status = "okay";
-			repeatability= <2>;
-		};
+		// sht4x@44 {
+		// 	compatible = "sensirion,sht4x";
+		// 	reg = <0x44>;
+		// 	label = "SHT40";
+		// 	status = "okay";
+		// 	repeatability= <2>;
+		// };
 
 		npm1300: npm1300@6b {
 			compatible = "nordic,npm1300";
@@ -292,6 +203,7 @@
 
 			};
 		};
+
 	};
 
 };
@@ -299,3 +211,7 @@
 // &uicr {
 // 	nfct-pins-as-gpios;
 // };
+
+&timer20 {
+	status = "okay";
+};

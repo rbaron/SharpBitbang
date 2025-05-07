@@ -144,21 +144,32 @@
 	gpio_i2c0: gpio_i2c {
 		compatible = "gpio-i2c";
 		status = "okay";
-		clock-frequency = <I2C_BITRATE_STANDARD>;
+		// clock-frequency = <I2C_BITRATE_STANDARD>;
+		clock-frequency = <I2C_BITRATE_FAST>;
 		sda-gpios = <&gpio2 7 (GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
 		scl-gpios = <&gpio2 6 (GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
-		// sda-gpios = <&gpio0 0 GPIO_PULL_UP>;
-		// scl-gpios = <&gpio0 1 GPIO_PULL_UP>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		// sht4x@44 {
-		// 	compatible = "sensirion,sht4x";
-		// 	reg = <0x44>;
-		// 	label = "SHT40";
-		// 	status = "okay";
-		// 	repeatability= <2>;
-		// };
+		sht4x@44 {
+			compatible = "sensirion,sht4x";
+			reg = <0x44>;
+			label = "SHT40";
+			status = "okay";
+			repeatability= <2>;
+
+			// Without this, the display does not work. Possibly because the npm1300 fails to intiialize?
+			// But we need to call device_init() at runtime.
+			zephyr,deferred-init;
+		};
+
+		lsm6dsl: lsm6dsl@6a {
+			// compatible = "i2c-device";
+			compatible = "st,lsm6dsl";
+			reg = <0x6a>;
+			status = "okay";
+			label = "LSM6DSL";
+		};
 
 		npm1300: npm1300@6b {
 			compatible = "nordic,npm1300";

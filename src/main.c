@@ -236,15 +236,48 @@ int main(void) {
   // lv_disp_set_rotation(NULL, LV_DISP_ROT_180);
 
   // SHT40.
-  // const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
-  // struct sensor_value temp, hum;
-  // if (!device_is_ready(sht)) {
-  //   LOG_ERR("Device %s is not ready.\n", sht->name);
-  //   return 0;
-  // }
+  const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
+  struct sensor_value temp, hum;
+  if (!device_is_ready(sht)) {
+    LOG_WRN("SHT40 %s is not ready.\n", sht->name);
+
+    // Enable sht.
+    // device_set_enable
+    ret = device_init(sht);
+    if (ret < 0) {
+      LOG_ERR("Error: %d\n", ret);
+      return 0;
+    }
+    LOG_INF("SHT40 %s is ready.\n", sht->name);
+    // return 0;
+  }
+
+  // LSM6DSL.
+  struct sensor_value accel[3];
+  const struct device *lsm6 = DEVICE_DT_GET_ANY(st_lsm6dsl);
+  if (!device_is_ready(lsm6)) {
+    LOG_ERR("Device %s is not ready\n", lsm6->name);
+    return 0;
+  }
+  LOG_INF("Device %s is ready\n", lsm6->name);
+  struct sensor_value odr_attr;
+  odr_attr.val1 = 104;
+  odr_attr.val2 = 0;
+  if (sensor_attr_set(lsm6, SENSOR_CHAN_ACCEL_XYZ,
+                      SENSOR_ATTR_SAMPLING_FREQUENCY, &odr_attr) < 0) {
+    printk("Cannot set sampling frequency for accelerometer.\n");
+    return 0;
+  }
+
+  if (sensor_attr_set(lsm6, SENSOR_CHAN_GYRO_XYZ,
+                      SENSOR_ATTR_SAMPLING_FREQUENCY, &odr_attr) < 0) {
+    printk("Cannot set sampling frequency for gyro.\n");
+    return 0;
+  }
 
   int x = 100;
   char buf[32];
+  char out_str[64];
   while (1) {
     lv_task_handler();
     k_msleep(1000);
@@ -257,16 +290,37 @@ int main(void) {
     // Toggle LED.
     gpio_pin_toggle_dt(&led0);
 
-    // if (sensor_sample_fetch(sht)) {
-    //   printf("Failed to fetch sample from SHT4X device\n");
-    //   return 0;
-    // }
+    if (sensor_sample_fetch(sht)) {
+      printf("Failed to fetch sample from SHT4X device\n");
+      return 0;
+    }
 
-    // sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+    sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
     // sensor_channel_get(sht, SENSOR_CHAN_HUMIDITY, &hum);
 
-    // LOG_INF("Temperature: %d.%06d C", temp.val1, temp.val2);
+    LOG_INF("Temperature: %d.%06d C", temp.val1, temp.val2);
     // LOG_INF("Humidity: %d.%06d %%", hum.val1, hum.val2);
+
+    // Accel.
+    // if (sensor_sample_fetch(lsm6, SENSOR_CHAN_ACCEL_XYZ) < 0) {
+    if (sensor_sample_fetch_chan(lsm6, SENSOR_CHAN_ACCEL_XYZ) < 0) {
+      LOG_ERR("LSM6DSL: sample fetch error\n");
+      continue;
+    }
+
+    sensor_channel_get(lsm6, SENSOR_CHAN_ACCEL_XYZ, accel);
+    sprintf(out_str, "accel x:%f ms/2 y:%f ms/2 z:%f ms/2",
+            sensor_value_to_double(&accel[0]),
+            sensor_value_to_double(&accel[1]),
+            sensor_value_to_double(&accel[2]));
+    LOG_INF("%s", out_str);
+    // sensor_channel_get(lsm6, SENSOR_CHAN_ACCEL_X, &accel[0]);
+    // LOG_INF("Accel: %d.%06d %d.%06d %d.%06d", accel[0].val1, accel[0].val2,
+    //         accel[1].val1, accel[1].val2, accel[2].val1, accel[2].val2);
+
+    // LOG_INF("Accel: X=%f, Y=%f, Z=%f\n", sensor_value_to_double(&accel[0]),
+    //         sensor_value_to_double(&accel[1]),
+    //         sensor_value_to_double(&accel[2]));
 
     led_on(leds, 0);
     k_msleep(500);

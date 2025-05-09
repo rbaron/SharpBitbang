@@ -94,6 +94,7 @@
 		va-gpios = <&gpio2 9 GPIO_ACTIVE_HIGH>;
 		vcom-freq = <30>;
 	};
+
 	/delete-node/ aliases;
 
 
@@ -144,8 +145,8 @@
 	gpio_i2c0: gpio_i2c {
 		compatible = "gpio-i2c";
 		status = "okay";
-		// clock-frequency = <I2C_BITRATE_STANDARD>;
-		clock-frequency = <I2C_BITRATE_FAST>;
+		clock-frequency = <I2C_BITRATE_STANDARD>;
+		// clock-frequency = <I2C_BITRATE_FAST>;
 		sda-gpios = <&gpio2 7 (GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
 		scl-gpios = <&gpio2 6 (GPIO_OPEN_DRAIN | GPIO_PULL_UP)>;
 		#address-cells = <1>;
@@ -155,7 +156,8 @@
 			compatible = "sensirion,sht4x";
 			reg = <0x44>;
 			label = "SHT40";
-			status = "okay";
+			// status = "okay";
+			status = "disabled";
 			repeatability= <2>;
 
 			// Without this, the display does not work. Possibly because the npm1300 fails to intiialize?
@@ -164,10 +166,10 @@
 		};
 
 		lsm6dsl: lsm6dsl@6a {
-			// compatible = "i2c-device";
 			compatible = "st,lsm6dsl";
 			reg = <0x6a>;
-			status = "okay";
+			// status = "okay";
+			status = "disabled";
 			label = "LSM6DSL";
 		};
 
@@ -179,9 +181,32 @@
 			// leds.
 			npm1300_leds: leds {
 				compatible = "nordic,npm1300-led";
-				nordic,led0-mode = "host";
-				nordic,led1-mode = "charging";
+				nordic,led0-mode = "charging";
+				nordic,led1-mode = "host";
 				nordic,led2-mode = "error";
+			};
+
+			npm1300_charger: charger {
+				status = "okay";
+				compatible = "nordic,npm1300-charger";
+				term-microvolt = <4150000>;
+				term-warm-microvolt = <4000000>;
+				current-microamp = <32000>;
+				vbus-limit-microamp = <100000>;
+				dischg-limit-microamp = <200000>;
+				thermistor-ohms = <0>;
+				thermistor-beta = <3380>;
+				charging-enable;
+
+				// compatible = "nordic,npm1300-charger";
+				// term-microvolt = <4150000>;
+				// term-warm-microvolt = <4000000>;
+				// current-microamp = <150000>;
+				// dischg-limit-microamp = <1000000>;
+				// vbus-limit-microamp = <500000>;
+				// thermistor-ohms = <0>;
+				// thermistor-beta = <3380>;
+				// charging-enable;
 			};
 
 			npm1300_regulators: regulators {
@@ -200,16 +225,16 @@
 				};
 
 				LDO2 {
-					// regulator-min-microvolt = <1000000>;
 					regulator-min-microvolt = <1000000>;
-					// regulator-min-microvolt = <3300000>;
 					regulator-max-microvolt = <3500000>;
-					// regulator-min-microvolt = <1000000>;
 					regulator-boot-on;
 					regulator-always-on;
 					status = "okay";
 
 					// status = "disabled";
+
+					// Not needed?
+					regulator-initial-mode = <NPM1300_LDSW_MODE_LDSW>;
 				};
 
 			};

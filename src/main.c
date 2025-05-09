@@ -17,38 +17,40 @@
 // sht40.
 #include <zephyr/drivers/sensor/sht4x.h>
 
+// Power management.
+#include <zephyr/pm/device.h>
+
 // static const struct device *regulators =
 //     DEVICE_DT_GET(DT_NODELABEL(npm1300_regulators));
 // static const struct device *ldo2 = DEVICE_DT_GET(DT_NODELABEL(npm1300_ldo2));
 
 // BLE.
-#include <zephyr/bluetooth/bluetooth.h>
-#include <zephyr/bluetooth/hci.h>
-#define DEVICE_NAME CONFIG_BT_DEVICE_NAME
-#define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
+// #include <zephyr/bluetooth/bluetooth.h>
+// #include <zephyr/bluetooth/hci.h>
+// #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
+// #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 
-static const struct bt_data ad[] = {
-    BT_DATA_BYTES(BT_DATA_FLAGS, BT_LE_AD_NO_BREDR),
-    BT_DATA_BYTES(BT_DATA_UUID16_ALL, 0xaa, 0xfe),
-    BT_DATA_BYTES(BT_DATA_SVC_DATA16, 0xaa, 0xfe, /* Eddystone UUID */
-                  0x10,                           /* Eddystone-URL frame type */
-                  0x00, /* Calibrated Tx power at 0m */
-                  0x00, /* URL Scheme Prefix http://www. */
-                  'z', 'e', 'p', 'h', 'y', 'r', 'p', 'r', 'o', 'j', 'e', 'c',
-                  't', 0x08) /* .org */
-};
+// static const struct bt_data ad[] = {
+//     BT_DATA_BYTES(BT_DATA_FLAGS, BT_LE_AD_NO_BREDR),
+//     BT_DATA_BYTES(BT_DATA_UUID16_ALL, 0xaa, 0xfe),
+//     BT_DATA_BYTES(BT_DATA_SVC_DATA16, 0xaa, 0xfe, /* Eddystone UUID */
+//                   0x10,                           /* Eddystone-URL frame type
+//                   */ 0x00, /* Calibrated Tx power at 0m */ 0x00, /* URL
+//                   Scheme Prefix http://www. */ 'z', 'e', 'p', 'h', 'y', 'r',
+//                   'p', 'r', 'o', 'j', 'e', 'c', 't', 0x08) /* .org */
+// };
 
-/* Set Scan Response data */
-static const struct bt_data sd[] = {
-    BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
-};
+// /* Set Scan Response data */
+// static const struct bt_data sd[] = {
+//     BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
+// };
 
 static const struct device *leds = DEVICE_DT_GET(DT_NODELABEL(npm1300_leds));
 
 LOG_MODULE_REGISTER(main, CONFIG_DISPLAY_LOG_LEVEL);
 
-#define DISPLAY_H DT_PROP(DT_NODELABEL(sharp_display), height)
-#define DISPLAY_W DT_PROP(DT_NODELABEL(sharp_display), width)
+// #define DISPLAY_H DT_PROP(DT_NODELABEL(sharp_display), height)
+// #define DISPLAY_W DT_PROP(DT_NODELABEL(sharp_display), width)
 
 static const struct device *display_dev =
     DEVICE_DT_GET(DT_NODELABEL(sharp_display));
@@ -77,37 +79,37 @@ static void button_pressed(const struct device *dev, struct gpio_callback *cb,
   LOG_INF("Button pressed: pins %d", pins);
 }
 
-static void bt_ready(int err) {
-  char addr_s[BT_ADDR_LE_STR_LEN];
-  bt_addr_le_t addr = {0};
-  size_t count = 1;
+// static void bt_ready(int err) {
+//   char addr_s[BT_ADDR_LE_STR_LEN];
+//   bt_addr_le_t addr = {0};
+//   size_t count = 1;
 
-  if (err) {
-    LOG_ERR("Bluetooth init failed (err %d)\n", err);
-    return;
-  }
+//   if (err) {
+//     LOG_ERR("Bluetooth init failed (err %d)\n", err);
+//     return;
+//   }
 
-  LOG_INF("Bluetooth initialized\n");
+//   LOG_INF("Bluetooth initialized\n");
 
-  /* Start advertising */
-  err = bt_le_adv_start(BT_LE_ADV_NCONN_IDENTITY, ad, ARRAY_SIZE(ad), sd,
-                        ARRAY_SIZE(sd));
-  if (err) {
-    LOG_ERR("Advertising failed to start (err %d)\n", err);
-    return;
-  }
+//   /* Start advertising */
+//   err = bt_le_adv_start(BT_LE_ADV_NCONN_IDENTITY, ad, ARRAY_SIZE(ad), sd,
+//                         ARRAY_SIZE(sd));
+//   if (err) {
+//     LOG_ERR("Advertising failed to start (err %d)\n", err);
+//     return;
+//   }
 
-  /* For connectable advertising you would use
-   * bt_le_oob_get_local().  For non-connectable non-identity
-   * advertising an non-resolvable private address is used;
-   * there is no API to retrieve that.
-   */
+//   /* For connectable advertising you would use
+//    * bt_le_oob_get_local().  For non-connectable non-identity
+//    * advertising an non-resolvable private address is used;
+//    * there is no API to retrieve that.
+//    */
 
-  bt_id_get(&addr, &count);
-  bt_addr_le_to_str(&addr, addr_s, sizeof(addr_s));
+//   bt_id_get(&addr, &count);
+//   bt_addr_le_to_str(&addr, addr_s, sizeof(addr_s));
 
-  LOG_INF("Beacon started, advertising as %s\n", addr_s);
-}
+//   LOG_INF("Beacon started, advertising as %s\n", addr_s);
+// }
 
 int main(void) {
   NRF_NFCT->PADCONFIG = 0;
@@ -179,18 +181,48 @@ int main(void) {
   // k_busy_wait(1000);
   // gpio_pin_set_dt(&vbus_en, 1);
   // k_busy_wait(1000);
+
+  // ~186uA -> 209uA (20 uA)
   gpio_pin_set_dt(&dispv5en, 1);
   k_busy_wait(1000);
+
+  // 5v pump: 186 -> 209ua = 20uA
+  // vb/va: 209uA -> 170uA = 39uA
+  // Display disconnected: 209uA -> 150uA = 59 uA (color)
+  // Display partial update every second: 209uA -> 434 uA
+  // During display update: 209uA -> 1.2mA
+  // Without display in dts (but display connected): 209uA -> 170 uA.
+  // Without display in dts and display disconnected: 209uA -> 170 uA as well!
+
+  // Without display, disconnected, charge pump off: 146 uA.
+  // Without display, disconnected, charge pump off, LDO2 disabled: 146 uA
+
+  // Without display, disconnected, charge pump off, LDO2 disabled, system off
+  // 144 uA
+  // Without display, disconnected, charge pump off, LDO2 disabled, system off,
+  // lsm6 disabled: 1.2 mA!!!
+  // Without display, disconnected, charge pump off, LDO2 disabled, system off,
+  // sht4x disabled: 146 uA
+  // Without display, disconnected, charge pump off, LDO2 disabled, system off,
+  // CONFIG_LOG=n:
+
+  // So: 20 + 39 + 59 = 118uA
+
+  // From datasheet:
+  // SHT4x start at 30uA (power up) then goes into idle at 1uA.
+  // LSM6DSL: 3uA in power down mode.
+
+  // With everything off:
 
   if (!device_is_ready(display_dev)) {
     LOG_ERR("Device not ready, aborting test");
     return 0;
   }
 
-  // Rotation.
   // lv_disp_set_rotation(lv_disp_get_default(), LV_DISP_ROT_180);
 
-  lv_obj_t *scr = lv_scr_act();
+  // lv_obj_t *scr = lv_scr_act();
+  lv_obj_t *scr = lv_screen_active();
 
   // Square.
   lv_obj_t *square = lv_obj_create(scr);
@@ -206,7 +238,7 @@ int main(void) {
   lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
 
 #if CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_MONOCHROME
-  lv_obj_set_style_bg_color(square, lv_color_black(), LV_PART_MAIN);
+  // lv_obj_set_style_bg_color(square, lv_color_black(), LV_PART_MAIN);
 #elif CONFIG_SHARP_LS0XXB7_DISPLAY_MODE_COLOR
   // Paint background white.
   static lv_style_t style_bg_white;
@@ -236,50 +268,70 @@ int main(void) {
   // lv_disp_set_rotation(NULL, LV_DISP_ROT_180);
 
   // SHT40.
-  const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
-  struct sensor_value temp, hum;
-  if (!device_is_ready(sht)) {
-    LOG_WRN("SHT40 %s is not ready.\n", sht->name);
+  // const struct device *const sht = DEVICE_DT_GET_ANY(sensirion_sht4x);
+  // struct sensor_value temp, hum;
+  // if (!device_is_ready(sht)) {
+  //   LOG_WRN("SHT40 %s is not ready.\n", sht->name);
 
-    // Enable sht.
-    // device_set_enable
-    ret = device_init(sht);
-    if (ret < 0) {
-      LOG_ERR("Error: %d\n", ret);
-      return 0;
-    }
-    LOG_INF("SHT40 %s is ready.\n", sht->name);
-    // return 0;
-  }
+  //   // Enable sht.
+  //   ret = device_init(sht);
+  //   if (ret < 0) {
+  //     LOG_ERR("Error: %d\n", ret);
+  //     return 0;
+  //   }
+  //   LOG_INF("SHT40 %s is ready.\n", sht->name);
+  //   // return 0;
+  // }
+  // LOG_INF("SHT40 %s is ready.\n", sht->name);
 
   // LSM6DSL.
-  struct sensor_value accel[3];
-  const struct device *lsm6 = DEVICE_DT_GET_ANY(st_lsm6dsl);
-  if (!device_is_ready(lsm6)) {
-    LOG_ERR("Device %s is not ready\n", lsm6->name);
-    return 0;
-  }
-  LOG_INF("Device %s is ready\n", lsm6->name);
-  struct sensor_value odr_attr;
-  odr_attr.val1 = 104;
-  odr_attr.val2 = 0;
-  if (sensor_attr_set(lsm6, SENSOR_CHAN_ACCEL_XYZ,
-                      SENSOR_ATTR_SAMPLING_FREQUENCY, &odr_attr) < 0) {
-    printk("Cannot set sampling frequency for accelerometer.\n");
-    return 0;
-  }
+  // struct sensor_value accel[3];
+  // const struct device *lsm6 = DEVICE_DT_GET_ANY(st_lsm6dsl);
+  // if (!device_is_ready(lsm6)) {
+  //   LOG_ERR("Device %s is not ready\n", lsm6->name);
+  //   return 0;
+  // }
 
-  if (sensor_attr_set(lsm6, SENSOR_CHAN_GYRO_XYZ,
-                      SENSOR_ATTR_SAMPLING_FREQUENCY, &odr_attr) < 0) {
-    printk("Cannot set sampling frequency for gyro.\n");
-    return 0;
-  }
+  // // Suspend LSM6DSL.
+  // ret = pm_device_action_run(lsm6, PM_DEVICE_ACTION_SUSPEND);
+  // if (ret < 0) {
+  //   LOG_ERR("Error in pm_device_action_run: %d\n", ret);
+  //   return 0;
+  // }
+  // LOG_INF("LSM6DSL %s is suspended\n", lsm6->name);
+
+  // LOG_INF("Device %s is ready\n", lsm6->name);
+  // struct sensor_value odr_attr;
+  // odr_attr.val1 = 104;
+  // odr_attr.val2 = 0;
+  // if (sensor_attr_set(lsm6, SENSOR_CHAN_ACCEL_XYZ,
+  //                     SENSOR_ATTR_SAMPLING_FREQUENCY, &odr_attr) < 0) {
+  //   printk("Cannot set sampling frequency for accelerometer.\n");
+  //   return 0;
+  // }
+
+  // if (sensor_attr_set(lsm6, SENSOR_CHAN_GYRO_XYZ,
+  //                     SENSOR_ATTR_SAMPLING_FREQUENCY, &odr_attr) < 0) {
+  //   printk("Cannot set sampling frequency for gyro.\n");
+  //   return 0;
+  // }
+
+  // sys_poweroff();
 
   int x = 100;
   char buf[32];
-  char out_str[64];
+  // char out_str[64];
   while (1) {
-    lv_task_handler();
+    // lv_task_handler();
+    lv_timer_handler();
+
+    // 100ms: 400uA
+    // 20000ms:
+    // - 50 uA without va/vb
+    // - 55 uA with va/vb
+    // 1000ms:
+    // - 72 uA with va/vb
+
     k_msleep(1000);
 
     // Update counter.
@@ -288,43 +340,42 @@ int main(void) {
     x += 1;
 
     // Toggle LED.
-    gpio_pin_toggle_dt(&led0);
+    // gpio_pin_toggle_dt(&led0);
 
-    if (sensor_sample_fetch(sht)) {
-      printf("Failed to fetch sample from SHT4X device\n");
-      return 0;
-    }
+    // if (sensor_sample_fetch(sht)) {
+    //   printf("Failed to fetch sample from SHT4X device\n");
+    //   return 0;
+    // }
 
-    sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
-    // sensor_channel_get(sht, SENSOR_CHAN_HUMIDITY, &hum);
+    // sensor_channel_get(sht, SENSOR_CHAN_AMBIENT_TEMP, &temp);
+    // // sensor_channel_get(sht, SENSOR_CHAN_HUMIDITY, &hum);
 
-    LOG_INF("Temperature: %d.%06d C", temp.val1, temp.val2);
-    // LOG_INF("Humidity: %d.%06d %%", hum.val1, hum.val2);
+    // LOG_INF("Temperature: %d.%06d C", temp.val1, temp.val2);
+    // // LOG_INF("Humidity: %d.%06d %%", hum.val1, hum.val2);
 
-    // Accel.
-    // if (sensor_sample_fetch(lsm6, SENSOR_CHAN_ACCEL_XYZ) < 0) {
-    if (sensor_sample_fetch_chan(lsm6, SENSOR_CHAN_ACCEL_XYZ) < 0) {
-      LOG_ERR("LSM6DSL: sample fetch error\n");
-      continue;
-    }
+    // // Accel.
+    // // if (sensor_sample_fetch(lsm6, SENSOR_CHAN_ACCEL_XYZ) < 0) {
+    // if (sensor_sample_fetch_chan(lsm6, SENSOR_CHAN_ACCEL_XYZ) < 0) {
+    //   LOG_ERR("LSM6DSL: sample fetch error\n");
+    //   continue;
+    // }
 
-    sensor_channel_get(lsm6, SENSOR_CHAN_ACCEL_XYZ, accel);
-    sprintf(out_str, "accel x:%f ms/2 y:%f ms/2 z:%f ms/2",
-            sensor_value_to_double(&accel[0]),
-            sensor_value_to_double(&accel[1]),
-            sensor_value_to_double(&accel[2]));
-    LOG_INF("%s", out_str);
-    // sensor_channel_get(lsm6, SENSOR_CHAN_ACCEL_X, &accel[0]);
-    // LOG_INF("Accel: %d.%06d %d.%06d %d.%06d", accel[0].val1, accel[0].val2,
-    //         accel[1].val1, accel[1].val2, accel[2].val1, accel[2].val2);
-
-    // LOG_INF("Accel: X=%f, Y=%f, Z=%f\n", sensor_value_to_double(&accel[0]),
+    // sensor_channel_get(lsm6, SENSOR_CHAN_ACCEL_XYZ, accel);
+    // sprintf(out_str, "x:%f ms/2\ny:%f ms/2\nz:%f ms/2",
+    //         sensor_value_to_double(&accel[0]),
     //         sensor_value_to_double(&accel[1]),
     //         sensor_value_to_double(&accel[2]));
+    // LOG_INF("%s", out_str);
 
-    led_on(leds, 0);
-    k_msleep(500);
-    led_off(leds, 0);
+    // sprintf(
+    //     out_str, "x:%.1f\ny:%.1f\nz:%.1f", sensor_value_to_double(&accel[0]),
+    //     sensor_value_to_double(&accel[1]),
+    //     sensor_value_to_double(&accel[2]));
+    // lv_label_set_text(label, out_str);
+
+    // led_on(leds, 0);
+    // k_msleep(500);
+    // led_off(leds, 0);
 
     // Enable regulator.
     // int ret = 0;
